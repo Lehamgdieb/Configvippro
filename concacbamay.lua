@@ -7,7 +7,10 @@ local Services = setmetatable({}, {__index = function(t, k) return game:GetServi
 local remote = Services.ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("CommF_")
 
 -- ✅ FIX 1: Dùng proxy HTTPS để tránh lỗi "Invalid Protocol" với http://
-local API_URL = "https://api.allorigins.win/get?url=" .. Services.HttpService:UrlEncode("http://14.185.45.59:8080/get_boss.php")
+-- Thử http:// thẳng (Synapse X, Fluxus hỗ trợ)
+-- Nếu vẫn lỗi Invalid Protocol thì executor không cho http://, cần đổi API sang https
+local API_URL = "http://14.185.45.59:8080/get_boss.php"
+local API_URL_FALLBACK = "https://corsproxy.io/?" .. "http://14.185.45.59:8080/get_boss.php"
 
 -- Tọa độ chuẩn (GIỮ NGUYÊN)
 local POS_HANG_NUOC   = CFrame.new(1396, 37, -1322)
@@ -141,47 +144,42 @@ local function hopToSaberServer()
 
     print("Đang gọi API tìm server có Saber Expert...")
 
-    -- ✅ pcall bọc request để tránh crash khi URL lỗi / timeout
-    local success, res = pcall(function()
-        return request_func({
-            Url    = API_URL,
-            Method = "GET",
-            Headers = {
-                ["Content-Type"]          = "application/json",
-                ["Bypass-Tunnel-Reminder"] = "true",
-            },
-        })
-    end)
+    -- Thử URL thẳng trước, nếu lỗi thì fallback qua corsproxy
+    local success, res
+    local urlsToTry = {API_URL, API_URL_FALLBACK}
+    for _, url in ipairs(urlsToTry) do
+        success, res = pcall(function()
+            return request_func({
+                Url    = url,
+                Method = "GET",
+                Headers = {
+                    ["Content-Type"]           = "application/json",
+                    ["Bypass-Tunnel-Reminder"] = "true",
+                },
+            })
+        end)
+        if success and res and res.Body and res.Body ~= "" then
+            print("✓ Request thành công với: " .. url)
+            break
+        else
+            warn("⚠ Thất bại với URL: " .. url .. " | " .. tostring(res))
+            success = false
+        end
+    end
 
     if not success then
-        warn("⚠ Request thất bại: " .. tostring(res))
+        warn("⚠ Tất cả URL đều thất bại. Bỏ qua Hop.")
         return false
     end
 
-    -- ✅ Kiểm tra response hợp lệ trước khi decode
     if not res or not res.Body or res.Body == "" then
         warn("⚠ Response rỗng hoặc không hợp lệ")
         return false
     end
 
-    -- allorigins /get trả về { contents: "..." } cần unwrap trước
-    local wrapSuccess, wrapped = pcall(function()
-        return Services.HttpService:JSONDecode(res.Body)
-    end)
-
-    if not wrapSuccess or type(wrapped) ~= "table" then
-        warn("⚠ Không thể parse wrapper JSON: " .. tostring(wrapped))
-        return false
-    end
-
-    local rawContents = wrapped.contents
-    if not rawContents or rawContents == "" then
-        warn("⚠ allorigins trả về contents rỗng")
-        return false
-    end
-
+    -- Decode thẳng JSON từ API (executor hỗ trợ http://)
     local decodeSuccess, serverList = pcall(function()
-        return Services.HttpService:JSONDecode(rawContents)
+        return Services.HttpService:JSONDecode(res.Body)
     end)
 
     if not decodeSuccess or type(serverList) ~= "table" then
