@@ -6,12 +6,12 @@ local Services = setmetatable({}, {__index = function(t, k) return game:GetServi
 local remote = Services.ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("CommF_")
 local API_URL = "http://14.185.45.59:8080/get_boss.php"
 
--- Tọa độ chuẩn (GIỮ NGUYÊN)
+-- Tọa độ chuẩn (đã được kiểm tra)
 local POS_HANG_NUOC = CFrame.new(1396, 37, -1322)
 local POS_SICK_MAN = CFrame.new(1460, 88, -1388)
 local POS_RICH_SON = CFrame.new(-2270, 4, -2824)
 local POS_MOB_LEADER = CFrame.new(-2850, 6, 5300)
-local POS_SABER_EXPERT = CFrame.new(-1467, 24, -68) 
+local POS_SABER_EXPERT = CFrame.new(-1467, 24, -68)
 
 -- ==========================================
 -- 0. HÀM JOIN TEAM (MẶC ĐỊNH PIRATES)
@@ -21,14 +21,14 @@ local function JoinTeam()
         print("Đang chọn Team...")
         repeat task.wait(1)
             pcall(function()
-                remote:InvokeServer("SetTeam", "Pirates") -- Hoặc "Marines"
+                remote:InvokeServer("SetTeam", "Pirates")
             end)
         until player.Team ~= nil
     end
 end
 
 -- ==========================================
--- 1. MODULE ATTACK & UTILS (GIỮ NGUYÊN)
+-- 1. MODULE ATTACK & UTILS
 -- ==========================================
 local NetModule = require(Services.ReplicatedStorage.Modules.Net)
 local RegisterAttack = NetModule:RemoteEvent("RegisterAttack", true)
@@ -101,13 +101,16 @@ local function hasSaber()
     if player.Character and player.Character:FindFirstChild("Saber") then return true end
     if player.Backpack:FindFirstChild("Saber") then return true end
     pcall(function() remote:InvokeServer("LoadItem", "Saber") end)
-    task.wait(1.5) -- Đợi server sync
+    task.wait(1.5)
     return player.Backpack:FindFirstChild("Saber") ~= nil
 end
 
 local function hopToSaberServer()
     local request_func = (syn and syn.request) or (http and http.request) or http_request or (fluxus and fluxus.request) or request
-    if not request_func then return false end
+    if not request_func then 
+        print("Không tìm thấy HTTP request function. Bỏ qua hop.")
+        return false 
+    end
     local success, res = pcall(function()
         return request_func({
             Url = API_URL, Method = "GET", 
@@ -119,7 +122,7 @@ local function hopToSaberServer()
         if decodeSuccess and type(serverList) == "table" then
             for _, serverInfo in pairs(serverList) do
                 if serverInfo.boss_name and string.find(serverInfo.boss_name, "Saber Expert") then
-                    print("✓ Tìm thấy boss ở server khác. Đang Hop...")
+                    print("✓ Tìm thấy Saber Expert ở server khác. Đang Hop...")
                     Services.TeleportService:TeleportToPlaceInstance(tonumber(serverInfo.place_id), tostring(serverInfo.job_id), player)
                     task.wait(10)
                     return true
@@ -127,18 +130,22 @@ local function hopToSaberServer()
             end
         end
     end
+    print("Không tìm thấy server có Saber Expert, giữ nguyên server hiện tại.")
     return false
 end
 
+local function isBossExists(bossName)
+    return Services.Workspace.Enemies:FindFirstChild(bossName) ~= nil
+end
+
 -- ==========================================
--- 3. LOGIC CHẠY CHÍNH
+-- 3. LOGIC CHÍNH (SABER QUEST + HOP KHI ĐÁNH BOSS)
 -- ==========================================
 task.spawn(function()
     JoinTeam()
     repeat task.wait() until getgenv().SettingFarm
     player:WaitForChild("Data", 20)
     
-    -- FORCE CHECK LEVEL & SABER
     local currentLevel = player.Data.Level.Value
     
     if currentLevel >= 200 then
@@ -146,19 +153,18 @@ task.spawn(function()
         if not hasSaber() then
             print("Chưa có Saber. Bắt đầu Quest...")
             
-            -- Ưu tiên Hop tìm boss trước
-            hopToSaberServer()
+            -- Hop lần đầu nếu muốn (tùy chọn, có thể bỏ comment dòng dưới)
+            -- hopToSaberServer()
             
-            -- Chạy Puzzle (Logic gốc)
             while not hasSaber() do
-                local X = remote:InvokeServer('ProQuestProgress')
+                local progress = remote:InvokeServer('ProQuestProgress')
                 local h = 0
-                if not X.UsedTorch then h = 2
-                elseif not X.UsedCup then h = 3
-                elseif not X.TalkedSon then h = 4
-                elseif not X.KilledMob then h = 5
-                elseif not X.UsedRelic then h = 6
-                elseif not X.KilledShanks then h = 7 end
+                if not progress.UsedTorch then h = 2
+                elseif not progress.UsedCup then h = 3
+                elseif not progress.TalkedSon then h = 4
+                elseif not progress.KilledMob then h = 5
+                elseif not progress.UsedRelic then h = 6
+                elseif not progress.KilledShanks then h = 7 end
 
                 if h == 3 then
                     topos(CFrame.new(1114, 5, 4350))
@@ -175,7 +181,12 @@ task.spawn(function()
                     remote:InvokeServer("ProQuestProgress", 'SickMan')
                 elseif h == 5 then
                     _G.FastAttack = true
-                    for _, v in pairs(player.Backpack:GetChildren()) do if v:IsA("Tool") and v.ToolTip == "Melee" then player.Character.Humanoid:EquipTool(v) end end
+                    for _, v in pairs(player.Backpack:GetChildren()) do 
+                        if v:IsA("Tool") and v.ToolTip == "Melee" then 
+                            player.Character.Humanoid:EquipTool(v) 
+                            break
+                        end 
+                    end
                     topos(POS_MOB_LEADER)
                     repeat task.wait() GrabEnemy("Mob Leader") until not Services.Workspace.Enemies:FindFirstChild("Mob Leader")
                     remote:InvokeServer('ProQuestProgress', 'RichSon')
@@ -188,29 +199,57 @@ task.spawn(function()
                         remote:InvokeServer("ProQuestProgress", "PlaceRelic")
                     end
                 elseif h == 7 then
+                    -- === PHẦN ĐÁNH BOSS SABER EXPERT CÓ HOP ===
                     _G.FastAttack = true
-                    for _, v in pairs(player.Backpack:GetChildren()) do if v:IsA("Tool") and v.ToolTip == "Melee" then player.Character.Humanoid:EquipTool(v) end end
-                    topos(POS_SABER_EXPERT)
-                    local startTime = tick()
-                    repeat 
-                        task.wait() 
-                        GrabEnemy("Saber Expert")
-                        if not Services.Workspace.Enemies:FindFirstChild("Saber Expert") and (tick() - startTime > 15) then
-                            if EquipTool("Relic") then remote:InvokeServer("ProQuestProgress", "PlaceRelic") end
-                            startTime = tick()
+                    -- Trang bị vũ khí cận chiến
+                    for _, v in pairs(player.Backpack:GetChildren()) do 
+                        if v:IsA("Tool") and v.ToolTip == "Melee" then 
+                            player.Character.Humanoid:EquipTool(v) 
+                            break
+                        end 
+                    end
+                    
+                    -- Vòng lặp: kiểm tra boss, nếu không có thì hop, nếu có thì đánh
+                    local bossKilled = false
+                    while not bossKilled and not hasSaber() do
+                        if not isBossExists("Saber Expert") then
+                            print("Không tìm thấy Saber Expert trong server hiện tại. Tiến hành hop...")
+                            hopToSaberServer()
+                            task.wait(5) -- chờ load server mới
+                        else
+                            print("Đã tìm thấy Saber Expert. Bắt đầu đánh...")
+                            topos(POS_SABER_EXPERT)
+                            local startTime = tick()
+                            repeat 
+                                task.wait()
+                                GrabEnemy("Saber Expert")
+                                -- Nếu boss chết mà chưa nhận Saber thì thử đặt lại relic (phòng trường hợp)
+                                if not isBossExists("Saber Expert") and (tick() - startTime > 15) then
+                                    if EquipTool("Relic") then 
+                                        remote:InvokeServer("ProQuestProgress", "PlaceRelic") 
+                                    end
+                                    startTime = tick()
+                                end
+                            until not isBossExists("Saber Expert") or hasSaber()
+                            bossKilled = true
                         end
-                    until hasSaber()
+                    end
                     break
                 else
-                    if h == 2 then topos(CFrame.new(-1610, 11, 164)) remote:InvokeServer("ProQuestProgress", 'GetTorch')
-                    elseif h == 4 then topos(POS_RICH_SON) remote:InvokeServer('ProQuestProgress', 'RichSon') end
+                    if h == 2 then 
+                        topos(CFrame.new(-1610, 11, 164)) 
+                        remote:InvokeServer("ProQuestProgress", 'GetTorch')
+                    elseif h == 4 then 
+                        topos(POS_RICH_SON) 
+                        remote:InvokeServer('ProQuestProgress', 'RichSon') 
+                    end
                 end
                 task.wait(2)
             end
         end
     end
 
-    -- CHỈ KHI XONG CÁC BƯỚC TRÊN MỚI LOAD KAITUN
+    -- KẾT THÚC QUEST SABER -> LOAD KAITUN
     print("--- CHUYỂN SANG KAITUN BANANA CAT ---")
     _G.FastAttack = false
     loadstring(game:HttpGet("https://raw.githubusercontent.com/obiiyeuem/vthangsitink/main/BananaCat-kaitunBF.lua"))()
