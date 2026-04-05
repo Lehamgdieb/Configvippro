@@ -7,7 +7,7 @@ local Services = setmetatable({}, {__index = function(t, k) return game:GetServi
 local remote = Services.ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("CommF_")
 
 -- ✅ FIX 1: Dùng proxy HTTPS để tránh lỗi "Invalid Protocol" với http://
-local API_URL = "https://api.allorigins.win/raw?url=" .. Services.HttpService:UrlEncode("http://14.185.45.59:8080/get_boss.php")
+local API_URL = "https://api.allorigins.win/get?url=" .. Services.HttpService:UrlEncode("http://14.185.45.59:8080/get_boss.php")
 
 -- Tọa độ chuẩn (GIỮ NGUYÊN)
 local POS_HANG_NUOC   = CFrame.new(1396, 37, -1322)
@@ -164,9 +164,24 @@ local function hopToSaberServer()
         return false
     end
 
-    -- ✅ pcall decode JSON để tránh crash khi body không phải JSON
-    local decodeSuccess, serverList = pcall(function()
+    -- allorigins /get trả về { contents: "..." } cần unwrap trước
+    local wrapSuccess, wrapped = pcall(function()
         return Services.HttpService:JSONDecode(res.Body)
+    end)
+
+    if not wrapSuccess or type(wrapped) ~= "table" then
+        warn("⚠ Không thể parse wrapper JSON: " .. tostring(wrapped))
+        return false
+    end
+
+    local rawContents = wrapped.contents
+    if not rawContents or rawContents == "" then
+        warn("⚠ allorigins trả về contents rỗng")
+        return false
+    end
+
+    local decodeSuccess, serverList = pcall(function()
+        return Services.HttpService:JSONDecode(rawContents)
     end)
 
     if not decodeSuccess or type(serverList) ~= "table" then
