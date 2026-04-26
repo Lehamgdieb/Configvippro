@@ -1,5 +1,5 @@
 -- ==========================================
--- ULTIMATE BANANA VIP + AUTO CDK (TÍCH HỢP TẬN GỐC) + RACE MASTER
+-- ULTIMATE BANANA VIP + AUTO CDK + RACE V3 + ELECTRIC CLAW
 -- ==========================================
 if not game:IsLoaded() then game.Loaded:Wait() end
 
@@ -114,7 +114,96 @@ local cdkCfg = config.AutoCDK or {}
 local levelThreshold = config.LevelThreshold or 2500
 
 _G.IsDoingAutoCDK = false   
-_G.CDKPriority = false      
+_G.DoingElectricClaw = false
+local request_func = (syn and syn.request) or (http and http.request) or http_request or (fluxus and fluxus.request) or request
+
+-- =====================================================================
+-- DI CHUYỂN
+-- =====================================================================
+local function Tween2(targetCFrame)
+    pcall(function()
+        local char = plr.Character
+        if not char or not char:FindFirstChild("HumanoidRootPart") or char.Humanoid.Health <= 0 then return end
+        local Root = char.HumanoidRootPart
+        local dist = (targetCFrame.Position - Root.Position).Magnitude
+        if dist < 5 then Root.CFrame = targetCFrame; return end
+        if not Root:FindFirstChild("BodyVelocity") then
+            local bv = Instance.new("BodyVelocity", Root)
+            bv.MaxForce = Vector3.new(9e9, 9e9, 9e9); bv.Velocity = Vector3.zero
+        end
+        if _G.CurrentTween and _G.CurrentTweenTarget and (_G.CurrentTweenTarget.Position - targetCFrame.Position).Magnitude < 10 then
+            if _G.CurrentTween.PlaybackState == Enum.PlaybackState.Playing then return end
+        end
+        if _G.CurrentTween then _G.CurrentTween:Cancel() end
+        _G.CurrentTweenTarget = targetCFrame
+        _G.CurrentTween = TS:Create(Root, TweenInfo.new(dist/315, Enum.EasingStyle.Linear), {CFrame = targetCFrame})
+        _G.CurrentTween:Play()
+    end)
+end
+
+-- =====================================================================
+-- AUTO LẤY ELECTRIC CLAW
+-- =====================================================================
+local ElecHopFile = "Banana_ElecHop_" .. tostring(plr.Name) .. ".txt"
+local function SafeIsFile(name) local res = false; pcall(function() res = isfile(name) end); return res end
+local function checkElectricReady()
+    local beli, frags = 0, 0
+    pcall(function() beli = plr.Data.Beli.Value; frags = plr.Data.Fragments.Value end)
+    if beli < 3000000 or frags < 5000 then return false end
+    local elec = plr.Backpack:FindFirstChild("Electric") or (plr.Character and plr.Character:FindFirstChild("Electric"))
+    if elec and elec:FindFirstChild("Level") and elec.Level.Value >= 400 then return true end
+    return false
+end
+
+local ElectricClawQuestStep = 1
+task.spawn(function()
+    while task.wait(1) do
+        if game.PlaceId == 100117331123089 or game.PlaceId == 7449423635 then
+            local hasEC = checkWeapon("Electric Claw")
+            local hasHopFile = SafeIsFile(ElecHopFile)
+            
+            if not hasEC and (hasHopFile or checkElectricReady()) then
+                _G.DoingElectricClaw = true; _G.IsDoingAutoCDK = true 
+                
+                if not hasHopFile then
+                    pcall(function() writefile(ElecHopFile, "Đã_Hop_Nha") end)
+                    local s, r = pcall(function() return request_func({Url = "https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Desc&limit=100", Method = "GET"}) end)
+                    if s and r and r.Body then
+                        local success, d = pcall(function() return HttpService:JSONDecode(r.Body) end)
+                        if success and d and d.data then
+                            local valid = {}
+                            for _, srv in pairs(d.data) do if srv.playing and srv.playing < (srv.maxPlayers or 12) - 1 and tostring(srv.id) ~= tostring(game.JobId) then table.insert(valid, tostring(srv.id)) end end
+                            if #valid > 0 then pcall(function() ReplicatedStorage:FindFirstChild("__ServerBrowser"):InvokeServer("teleport", valid[math.random(1, #valid)]) end) end
+                        end
+                    end
+                    task.wait(20)
+                else
+                    local hero = CFrame.new(-10476, 330, -9669)
+                    local mansion = CFrame.new(-12548.0, 332.378, -7617.0) 
+                    local root = plr.Character and plr.Character:FindFirstChild("HumanoidRootPart")
+                    if root then
+                        if ElectricClawQuestStep == 1 then
+                            if (root.Position - hero.Position).Magnitude > 15 then Tween2(hero) else
+                                CommF_("BuyElectricClaw", "Start"); task.wait(0.5); CommF_("PreviousHero", "1"); task.wait(1); ElectricClawQuestStep = 2
+                            end
+                        elseif ElectricClawQuestStep == 2 then
+                            if (root.Position - mansion.Position).Magnitude > 15 then Tween2(mansion) else
+                                CommF_("PreviousHero", "2"); task.wait(1); CommF_("BuyElectricClaw"); task.wait(2)
+                                pcall(function() delfile(ElecHopFile) end)
+                                _G.DoingElectricClaw = false; _G.IsDoingAutoCDK = false; ElectricClawQuestStep = 3
+                            end
+                        elseif ElectricClawQuestStep == 3 then
+                            if checkWeapon("Electric Claw") or not checkElectricReady() then pcall(function() delfile(ElecHopFile) end); _G.DoingElectricClaw = false end
+                        end
+                    end
+                end
+            else
+                if hasEC and hasHopFile then pcall(function() delfile(ElecHopFile) end) end
+                _G.DoingElectricClaw = false
+            end
+        end
+    end
+end)
 
 -- =====================================================================
 -- HỆ THỐNG KAITUN 
@@ -124,7 +213,7 @@ local function TryLoadKaitun()
     if not kaitunCfg.Enabled or KaitunLoaded then return end
 
     local doingHaze = isDoingHazeQuest()
-    if not doingHaze and _G.IsDoingAutoCDK then return end
+    if _G.DoingElectricClaw or (not doingHaze and _G.IsDoingAutoCDK) then return end
 
     local currentLvl = getLevel()
     if currentLvl < levelThreshold then
@@ -140,9 +229,11 @@ local function TryLoadKaitun()
 
     if doingHaze or hasCDK() or ((not hasYama() or not hasTushita()) and not _G.IsDoingAutoCDK) then
         local raceStatus = checkRaceV3()
-        if raceStatus == "V3" or raceStatus == "V4" then
+        -- FIX: NẾU TẮT LẤY V3 THÌ BỎ QUA BƯỚC NÀY
+        local needV3 = (bananaCfg.AutoRaceV3 ~= false)
+        if not needV3 or (raceStatus == "V3" or raceStatus == "V4") then
             KaitunLoaded = true
-            print("[Kaitun] Kích hoạt (Đủ điều kiện đặc biệt + V3/V4)")
+            print("[Kaitun] Kích hoạt (Đủ điều kiện + V3/V4 hoặc Bỏ qua V3)")
             task.spawn(function()
                 getgenv().Key = kaitunCfg.Key or ""
                 getgenv().SettingFarm = kaitunCfg.SettingFarm or {}
@@ -182,18 +273,25 @@ end)
 local TrashFruits = {"Rocket-Rocket", "Spin-Spin", "Blade-Blade", "Spring-Spring", "Bomb-Bomb", "Smoke-Smoke", "Spike-Spike", "Flame-Flame", "Ice-Ice", "Sand-Sand", "Dark-Dark", "Falcon-Falcon", "Diamond-Diamond", "Light-Light", "Rubber-Rubber", "Ghost-Ghost", "Magma-Magma", "Quake-Quake"}
 task.spawn(function()
     while task.wait(1) do
-        if config.AutoStoreFruit and (game.PlaceId == 100117331123089 or game.PlaceId == 7449423635) then
+        local storeConfig = true
+        pcall(function() if config.AutoStoreFruit ~= nil then storeConfig = config.AutoStoreFruit end end)
+        
+        if storeConfig and (game.PlaceId == 100117331123089 or game.PlaceId == 7449423635) then
             pcall(function()
                 local char, bp = plr.Character, plr:FindFirstChild("Backpack")
                 if not char or not bp then return end
                 local tools = {}
                 for _, v in pairs(char:GetChildren()) do if v:IsA("Tool") then table.insert(tools, v) end end
                 for _, v in pairs(bp:GetChildren()) do if v:IsA("Tool") then table.insert(tools, v) end end
+                
                 for _, tool in ipairs(tools) do
                     if tool.ToolTip == "Blox Fruit" or string.find(tool.Name, "Fruit") then
                         local isTrash = false
                         for _, t in pairs(TrashFruits) do if string.find(tool.Name, t) then isTrash = true; break end end
-                        if not isTrash then CommF_("StoreFruit", tool:GetAttribute("OriginalName") or tool.Name, tool) end
+                        if not isTrash then
+                            local exactName = tool:GetAttribute("OriginalName") or tool.Name
+                            CommF_("StoreFruit", exactName, tool)
+                        end
                     end
                 end
             end)
@@ -206,13 +304,12 @@ end)
 -- =====================================================================
 local AutoFindVIPBoss = bananaCfg.AutoFindVIPBoss or false
 local AutoHopBoss = bananaCfg.AutoHopBoss or false
-local request_func = (syn and syn.request) or (http and http.request) or http_request or (fluxus and fluxus.request) or request
 
 task.spawn(function()
     task.wait(5)
-    local API_SAVE = "http://14.174.148.37:8080/save_boss.php"
-    local API_INDRA = "http://14.174.148.37:8080/get_rip_indra.php"
-    local API_DOUGH = "http://14.174.148.37:8080/get_doughking.php"
+    local API_SAVE = "http://14.185.47.226:8080/save_boss.php"
+    local API_INDRA = "http://14.185.47.226:8080/get_rip_indra.php"
+    local API_DOUGH = "http://14.185.47.226:8080/get_doughking.php"
     local needDough, needIndra = true, true
     local lastInvCheck = 0
     local SEA3_IDS = { [100117331123089] = true, [7449423635] = true }
@@ -343,7 +440,7 @@ task.spawn(function()
 
     local isHopping = false
     local function performHop()
-        if _G.IsDoingAutoCDK then HopLabel.Text = "HOP: Bị chặn (đang Auto CDK)"; return end
+        if _G.DoingElectricClaw or _G.IsDoingAutoCDK then HopLabel.Text = "HOP: Bị chặn (đang làm Quest)"; return end
         if isHopping then return end
         isHopping = true
 
@@ -435,7 +532,7 @@ task.spawn(function()
                     for _, b in pairs(foundBosses) do
                         if (b == "Dough King" and needDough) or (b == "rip_indra True Form" and needIndra) then hasVip = true; break end
                     end
-                    if not hasVip and not isHopping and not _G.IsDoingAutoCDK then performHop(); lastMoveTime = tick() end
+                    if not hasVip and not isHopping and not _G.IsDoingAutoCDK and not _G.DoingElectricClaw then performHop(); lastMoveTime = tick() end
                 end
 
                 if plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
@@ -443,7 +540,7 @@ task.spawn(function()
                     if (pos - lastPos).Magnitude > 2 then lastPos = pos; lastMoveTime = tick() end
                 else lastMoveTime = tick() end
 
-                if tick() - lastMoveTime > AFK_TIMEOUT and not isHopping and (AutoFindVIPBoss or AutoHopBoss) and not _G.IsDoingAutoCDK then performHop(); lastMoveTime = tick() end
+                if tick() - lastMoveTime > AFK_TIMEOUT and not isHopping and (AutoFindVIPBoss or AutoHopBoss) and not _G.IsDoingAutoCDK and not _G.DoingElectricClaw then performHop(); lastMoveTime = tick() end
             end)
             if not ok then warn("[Banana ProVIP] Lỗi vòng lặp") end
             task.wait(1)
@@ -505,27 +602,6 @@ if cdkCfg.Enabled then
         if toolInBack and not toolInChar then char.Humanoid:EquipTool(toolInBack) end
     end
 
-    local function Tween2CDK(targetCFrame)
-        pcall(function()
-            local char = plr.Character
-            if not char or not char:FindFirstChild("HumanoidRootPart") or char.Humanoid.Health <= 0 then return end
-            local Root = char.HumanoidRootPart
-            local dist = (targetCFrame.Position - Root.Position).Magnitude
-            if dist < 5 then Root.CFrame = targetCFrame; return end
-            if not Root:FindFirstChild("BodyVelocity") then
-                local bv = Instance.new("BodyVelocity", Root)
-                bv.MaxForce = Vector3.new(9e9, 9e9, 9e9); bv.Velocity = Vector3.zero
-            end
-            if _G.CurrentTween and _G.CurrentTweenTarget and (_G.CurrentTweenTarget.Position - targetCFrame.Position).Magnitude < 10 then
-                if _G.CurrentTween.PlaybackState == Enum.PlaybackState.Playing then return end
-            end
-            if _G.CurrentTween then _G.CurrentTween:Cancel() end
-            _G.CurrentTweenTarget = targetCFrame
-            _G.CurrentTween = TS:Create(Root, TweenInfo.new(dist/315, Enum.EasingStyle.Linear), {CFrame = targetCFrame})
-            _G.CurrentTween:Play()
-        end)
-    end
-
     local function BKPCDK(targetCFrame)
         pcall(function()
             local char = plr.Character
@@ -544,7 +620,7 @@ if cdkCfg.Enabled then
         local char = plr.Character
         if not char or not char:FindFirstChild("HumanoidRootPart") then return end
         local dist = (targetCFrame.Position - char.HumanoidRootPart.Position).Magnitude
-        if dist > 300 then Tween2CDK(targetCFrame) elseif dist > 5 then BKPCDK(targetCFrame) end
+        if dist > 300 then Tween2(targetCFrame) elseif dist > 5 then BKPCDK(targetCFrame) end
     end
 
     RS.Stepped:Connect(function()
@@ -562,22 +638,27 @@ if cdkCfg.Enabled then
         end)
     end)
 
-    -- CHECK ĐIỀU KIỆN CDK
+    -- CHECK ĐIỀU KIỆN CDK (CÓ TÙY BIẾN RACE V3)
     task.spawn(function()
         while task.wait(3) do
             pcall(function()
-                if not cdkCfg.Enabled then return end
+                if not cdkCfg.Enabled or _G.DoingElectricClaw then return end
                 local hasY, hasT, hasC, raceStatus = hasYama(), hasTushita(), hasCDK(), checkRaceV3()
+                
                 if hasC then
                     if _G.Auto_DualKatana then _G.Auto_DualKatana = false; _G.IsDoingAutoCDK = false; print("[Auto CDK] Đã có CDK!") end return
                 end
+                
                 if hasY and hasT and not hasC then
-                    if raceStatus ~= "V3" and raceStatus ~= "V4" then
+                    -- FIX: NẾU TẮT V3 THÌ BỎ QUA KIỂM TRA TỘC LÀ NHẢY VÀO CDK LUÔN
+                    local needV3 = (bananaCfg.AutoRaceV3 ~= false)
+                    if needV3 and raceStatus ~= "V3" and raceStatus ~= "V4" then
                         if _G.Auto_DualKatana then _G.Auto_DualKatana = false; _G.IsDoingAutoCDK = false; print("[Auto CDK] Chờ Race V3.") end return
                     else
                         if not _G.Auto_DualKatana then _G.Auto_DualKatana = true; _G.IsDoingAutoCDK = true; print("[Auto CDK] Bắt đầu CDK!") end return
                     end
                 end
+                
                 if _G.Auto_DualKatana then _G.Auto_DualKatana = false; _G.IsDoingAutoCDK = false end
             end)
         end
@@ -618,7 +699,7 @@ if cdkCfg.Enabled then
                         target.HumanoidRootPart.Size = Vector3.new(60, 60, 60)
                         _G.MonFarm = target.Name; _G.FarmPos = target.HumanoidRootPart.CFrame
                         AttackNoCoolDownCDK()
-                    else Tween2CDK(CFrame.new(-9495, 450, 5977)) end
+                    else Tween2(CFrame.new(-9495, 450, 5977)) end
                 end)
             end
         end
@@ -650,11 +731,14 @@ if cdkCfg.Enabled then
                             local boss = workspace.Enemies:FindFirstChild("Cursed Skeleton Boss")
                             if boss and boss.Humanoid.Health > 0 then SmartMoveCDK(boss.HumanoidRootPart.CFrame * Pos); AttackNoCoolDownCDK()
                             else
-                                local p = workspace.Map.AlucardQuest.Pedestal
-                                if p and (plr.Character.HumanoidRootPart.Position - p.Position).Magnitude > 15 then Tween2CDK(p.CFrame * CFrame.new(0,5,0)) else CommF_("CDKQuest", "BuyCDK") end
+                                local p = workspace.Map:FindFirstChild("AlucardQuest") and workspace.Map.AlucardQuest:FindFirstChild("Pedestal")
+                                if p and (plr.Character.HumanoidRootPart.Position - p.Position).Magnitude > 15 then Tween2(p.CFrame * CFrame.new(0,5,0)) else CommF_("CDKQuest", "BuyCDK") end
                             end
                         elseif frags == 5 then Q_Y3 = true; CommF_("CDKQuest", "StartTrial", "Evil")
-                        elseif frags == 4 then Q_Y2 = true; CommF_("CDKQuest", "StartTrial", "Evil")
+                        elseif frags == 4 then 
+                            Q_Y2 = true; CommF_("CDKQuest", "StartTrial", "Evil")
+                            print("🎯 Yama Q2 (Haze): Đã tắt Auto CDK, nhường Kaitun chạy!")
+                            _G.Auto_DualKatana = false; _G.IsDoingAutoCDK = false
                         elseif frags == 3 then Q_Y1 = true; CommF_("CDKQuest", "StartTrial", "Evil")
                         elseif frags == 2 then Q_T3 = true; CommF_("CDKQuest", "StartTrial", "Good")
                         elseif frags == 1 then Q_T2 = true; CommF_("CDKQuest", "StartTrial", "Good")
@@ -671,16 +755,9 @@ if cdkCfg.Enabled then
             if Q_Y1 and not _G.AutoFarm_Bone then
                 pcall(function()
                     local pirate = workspace.Enemies:FindFirstChild("Mythological Pirate")
-                    if pirate then SmartMoveCDK(pirate.HumanoidRootPart.CFrame * CFrame.new(0, 0, -2)) else Tween2CDK(CFrame.new(-13451, 543, -6961)) end
+                    if pirate then SmartMoveCDK(pirate.HumanoidRootPart.CFrame * CFrame.new(0, 0, -2)) else Tween2(CFrame.new(-13451, 543, -6961)) end
                 end)
             end
-        end
-    end)
-
-    -- Yama Q2 (DÙNG KAITUN)
-    task.spawn(function()
-        while task.wait(3) do
-            if Q_Y2 and not _G.AutoFarm_Bone then print("🎯 Yama Q2 (Haze): Kaitun BananaCat đang lo...") end
         end
     end)
 
@@ -701,7 +778,7 @@ if cdkCfg.Enabled then
                             for i = 1, 3 do
                                 local t = hell:FindFirstChild("Torch"..i)
                                 if t and t:FindFirstChildOfClass("ProximityPrompt") and t.ProximityPrompt.Enabled then
-                                    Tween2CDK(t.CFrame); task.wait(1.5); VIM:SendKeyEvent(true, Enum.KeyCode.E, false, game); task.wait(3); VIM:SendKeyEvent(false, Enum.KeyCode.E, false, game)
+                                    Tween2(t.CFrame); task.wait(1.5); VIM:SendKeyEvent(true, Enum.KeyCode.E, false, game); task.wait(3); VIM:SendKeyEvent(false, Enum.KeyCode.E, false, game)
                                 end
                             end
                             local exitP = hell:FindFirstChild("Exit"); if exitP then plr.Character.HumanoidRootPart.CFrame = exitP.CFrame end
@@ -714,14 +791,14 @@ if cdkCfg.Enabled then
                         else
                             if plr.Backpack:FindFirstChild("Hallow Essence") or plr.Character:FindFirstChild("Hallow Essence") then
                                 local altarPos = CFrame.new(-8932.32, 146.83, 6062.55)
-                                Tween2CDK(altarPos); if (altarPos.Position - plr.Character.HumanoidRootPart.Position).Magnitude <= 10 then EquipSwordCDK("Hallow Essence") end
+                                Tween2(altarPos); if (altarPos.Position - plr.Character.HumanoidRootPart.Position).Magnitude <= 10 then EquipSwordCDK("Hallow Essence") end
                             else
                                 local bones = CommF_("Bones", "Check") or 0
                                 if bones >= 50 then
-                                    Tween2CDK(CFrame.new(-9570, 315, 6726)); if (plr.Character.HumanoidRootPart.Position - CFrame.new(-9570, 315, 6726).Position).Magnitude < 100 then CommF_("Bones", "Buy", 1, 1) end
+                                    Tween2(CFrame.new(-9570, 315, 6726)); if (plr.Character.HumanoidRootPart.Position - CFrame.new(-9570, 315, 6726).Position).Magnitude < 100 then CommF_("Bones", "Buy", 1, 1) end
                                 else
                                     local t = nil; for _, v in pairs(workspace.Enemies:GetChildren()) do if table.find(BoneMobs, v.Name) and v:FindFirstChild("Humanoid") and v.Humanoid.Health > 0 then t = v; break end end
-                                    if t then EquipSwordCDK(_G.CurrentSword); SmartMoveCDK(t.HumanoidRootPart.CFrame * Pos); t.HumanoidRootPart.Size = Vector3.new(60, 60, 60); _G.MonFarm = t.Name; _G.FarmPos = t.HumanoidRootPart.CFrame; AttackNoCoolDownCDK() else Tween2CDK(CFrame.new(-9495, 450, 5977)) end
+                                    if t then EquipSwordCDK(_G.CurrentSword); SmartMoveCDK(t.HumanoidRootPart.CFrame * Pos); t.HumanoidRootPart.Size = Vector3.new(60, 60, 60); _G.MonFarm = t.Name; _G.FarmPos = t.HumanoidRootPart.CFrame; AttackNoCoolDownCDK() else Tween2(CFrame.new(-9495, 450, 5977)) end
                                 end
                             end
                         end
@@ -741,7 +818,7 @@ if cdkCfg.Enabled then
                     local d = {CFrame.new(-4602.51, 16.44, -2880.99), CFrame.new(4001.18, 10.08, -2654.86), CFrame.new(-9530.76, 7.24, -8375.50)}
                     local target = d[_G.DealerStep]
                     if target then
-                        if (plr.Character.HumanoidRootPart.Position - target.Position).Magnitude > 15 then Tween2CDK(target)
+                        if (plr.Character.HumanoidRootPart.Position - target.Position).Magnitude > 15 then Tween2(target)
                         else
                             BKPCDK(target); task.wait(0.5)
                             local npc = nil
@@ -761,7 +838,7 @@ if cdkCfg.Enabled then
         while task.wait() do
             if Q_T2 and not _G.AutoFarm_Bone then
                 pcall(function()
-                    if (CFrame.new(-5539, 313, -2972).Position - plr.Character.HumanoidRootPart.Position).Magnitude > 500 then Tween2CDK(CFrame.new(-5545, 313, -2976))
+                    if (CFrame.new(-5539, 313, -2972).Position - plr.Character.HumanoidRootPart.Position).Magnitude > 500 then Tween2(CFrame.new(-5545, 313, -2976))
                     else
                         local p = nil; for _, v in pairs(workspace.Enemies:GetChildren()) do if v.Humanoid.Health > 0 and (v.HumanoidRootPart.Position - plr.Character.HumanoidRootPart.Position).Magnitude < 2000 then p = v; break end end
                         if p then SmartMoveCDK(p.HumanoidRootPart.CFrame * Pos); AttackNoCoolDownCDK() end
@@ -786,13 +863,13 @@ if cdkCfg.Enabled then
                             local lit = true
                             for i = 1, 3 do
                                 local t = heav:FindFirstChild("Torch"..i)
-                                if t and t:FindFirstChildOfClass("ProximityPrompt") and t.ProximityPrompt.Enabled then lit = false; Tween2CDK(t.CFrame); task.wait(1.5); VIM:SendKeyEvent(true, Enum.KeyCode.E, false, game); task.wait(3); VIM:SendKeyEvent(false, Enum.KeyCode.E, false, game); task.wait(0.5) end
+                                if t and t:FindFirstChildOfClass("ProximityPrompt") and t.ProximityPrompt.Enabled then lit = false; Tween2(t.CFrame); task.wait(1.5); VIM:SendKeyEvent(true, Enum.KeyCode.E, false, game); task.wait(3); VIM:SendKeyEvent(false, Enum.KeyCode.E, false, game); task.wait(0.5) end
                             end
                             if lit then local exitP = heav:FindFirstChild("Exit"); if exitP then plr.Character.HumanoidRootPart.CFrame = exitP.CFrame end end
                         end
                     else
                         local cq = nil; for _, v in pairs(workspace.Enemies:GetChildren()) do if string.find(v.Name, "Cake Queen") and v.Humanoid.Health > 0 then cq = v; break end end
-                        if cq then EquipSwordCDK(_G.CurrentSword); SmartMoveCDK(cq.HumanoidRootPart.CFrame * Pos); AttackNoCoolDownCDK() else Tween2CDK(CFrame.new(-709, 381, -11011)) end
+                        if cq then EquipSwordCDK(_G.CurrentSword); SmartMoveCDK(cq.HumanoidRootPart.CFrame * Pos); AttackNoCoolDownCDK() else Tween2(CFrame.new(-709, 381, -11011)) end
                     end
                 end)
             end
@@ -840,21 +917,25 @@ if cdkCfg.Enabled then
 end
 
 -- =====================================================================
--- RACE MASTER
+-- RACE MASTER (HOÀN CHỈNH)
 -- =====================================================================
 task.spawn(function()
     while task.wait(2) do
         if getLevel() >= levelThreshold then
             local raceCfg = bananaCfg
             _G.AutoReroll = raceCfg.AutoReroll or { Enable = true, FragThreshold = 3000, StopAt = {"Human", "Mink"} }
+            _G.AutoCyborgV1 = false
             _G.AutoRaceV2 = raceCfg.AutoRaceV2 ~= false
             _G.AutoRaceV3 = raceCfg.AutoRaceV3 ~= false
             _G.TweenSpeed = raceCfg.TweenSpeed or 300
+            _G.BringMob = raceCfg.BringMob or false
+            _G.MonFarm = raceCfg.MonFarm or ""
+            _G.FarmPos = raceCfg.FarmPos
             _G.HumanBosses = raceCfg.HumanBosses or {{Name = "Diamond", Pos = CFrame.new(-1587.7, 198.9, -111.4), Killed = false},{Name = "Jeremy", Pos = CFrame.new(2335.8, 449.2, 700.2), Killed = false},{Name = "Fajita", AltName = "Orbitus", Pos = CFrame.new(-2138.8, 73.3, -4315.8), Killed = false}}
             _G.CurrentAttacking = nil
 
-            local API_NIGHT = "http://14.174.148.37:8080/get_cursedcaptain.php"
-            local API_MARK_V = "http://14.174.148.37:8080/mark_visited.php"
+            local API_NIGHT = "http://14.185.47.226:8080/get_cursedcaptain.php"
+            local API_MARK_V = "http://14.185.47.226:8080/mark_visited.php"
 
             local function TP(cf)
                 pcall(function()
@@ -886,7 +967,7 @@ task.spawn(function()
 
             task.spawn(function()
                 while task.wait(1.5) do
-                    if _G.IsDoingAutoCDK then _G.AutoRaceV2 = false; _G.AutoRaceV3 = false; return end
+                    if _G.IsDoingAutoCDK or _G.DoingElectricClaw then _G.AutoRaceV2 = false; _G.AutoRaceV3 = false; return end
                     pcall(function()
                         local currentStatus = checkRaceV3()
                         if currentStatus == "V3" or currentStatus == "V4" then
@@ -935,9 +1016,24 @@ task.spawn(function()
                     end)
                 end
             end)
+
+            task.spawn(function()
+                while task.wait() do
+                    if _G.BringMob and _G.FarmPos then
+                        pcall(function()
+                            for _, v in pairs(workspace.Enemies:GetChildren()) do
+                                if v.Name:find(_G.MonFarm) and v:FindFirstChild("Humanoid") and v.Humanoid.Health > 0 then
+                                    v.HumanoidRootPart.CFrame = _G.FarmPos; v.HumanoidRootPart.CanCollide = false; v.HumanoidRootPart.Size = Vector3.new(60, 60, 60); v.Humanoid:ChangeState(11)
+                                end
+                            end
+                        end)
+                    end
+                end
+            end)
+            
             break 
         end
     end
 end)
 
-print("⚡ ULTIMATE BANANA VIP + AUTO CDK + RACE MASTER LOADED SUCCESS! ⚡")
+print("⚡ ULTIMATE BANANA VIP + AUTO CDK + RACE V3 + ELECTRIC CLAW LOADED SUCCESS! ⚡")
