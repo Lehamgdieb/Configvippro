@@ -248,7 +248,6 @@ local function AutoHop(apiUrl, reason)
     end)
 end
 
--- HÀM SPAM CLICK TẮT HỘI THOẠI SAU KHI BẤM E
 local function CloseDialog()
     pcall(function()
         local camera = workspace.CurrentCamera
@@ -261,7 +260,6 @@ local function CloseDialog()
     end)
 end
 
--- FIX LỖI ĐƠ NHÂN VẬT KHI RESET
 RunService.Stepped:Connect(function()
     pcall(function()
         if (_G.Auto_DualKatana or _G.AutoFarm_Bone) and not _G.IsResetting then
@@ -369,7 +367,11 @@ task.spawn(function()
                         if workspace.Enemies:FindFirstChild("Soul Reaper") then _G.IsTakingDamage = true end
                     end
                     
-                    EquipSword(_G.CurrentSword)
+                    if not _G.IsTakingDamage then 
+                        EquipSword(_G.CurrentSword) 
+                    else
+                        pcall(function() player.Character.Humanoid:UnequipTools() end)
+                    end
 
                     Auto_Quest_Yama_1 = false; Auto_Quest_Yama_2 = false; Auto_Quest_Yama_3 = false
                     Auto_Quest_Tushita_1 = false; Auto_Quest_Tushita_2 = false; Auto_Quest_Tushita_3 = false
@@ -386,14 +388,12 @@ task.spawn(function()
                             _G.BossDoorStep = _G.BossDoorStep or 1
                             
                             if _G.BossDoorStep == 1 then
-                                print("🎯 Đang bay tới cuộn giấy Yama...")
                                 local scroll1 = CFrame.new(-12391.1, 603.4, -6506.0)
                                 if (player.Character.HumanoidRootPart.Position - scroll1.Position).Magnitude > 3 then
                                     Tween2(scroll1)
                                 else
                                     BKP(scroll1)
                                     task.wait(0.5) 
-                                    print("🎯 Đang tương tác cuộn giấy Yama...")
                                     VIM:SendKeyEvent(true, Enum.KeyCode.E, false, game)
                                     task.wait(3)
                                     VIM:SendKeyEvent(false, Enum.KeyCode.E, false, game)
@@ -404,14 +404,12 @@ task.spawn(function()
                                 end
                                 
                             elseif _G.BossDoorStep == 2 then
-                                print("🎯 Đang bay tới cuộn giấy Tushita...")
                                 local scroll2 = CFrame.new(-12391.7, 603.3, -6596.5)
                                 if (player.Character.HumanoidRootPart.Position - scroll2.Position).Magnitude > 3 then
                                     Tween2(scroll2)
                                 else
                                     BKP(scroll2)
                                     task.wait(0.5) 
-                                    print("🎯 Đang tương tác cuộn giấy Tushita...")
                                     VIM:SendKeyEvent(true, Enum.KeyCode.E, false, game)
                                     task.wait(3)
                                     VIM:SendKeyEvent(false, Enum.KeyCode.E, false, game)
@@ -422,14 +420,12 @@ task.spawn(function()
                                 end
                                 
                             elseif _G.BossDoorStep == 3 then
-                                print("🎯 Đang bay tới cổng bệ đá...")
                                 local doorPos = CFrame.new(-12361, 603, -6550)
                                 if (player.Character.HumanoidRootPart.Position - doorPos.Position).Magnitude > 3 then
                                     Tween2(doorPos)
                                 else
                                     BKP(doorPos)
                                     task.wait(0.5) 
-                                    print("🎯 Đang bấm E mở cổng đợi Boss...")
                                     VIM:SendKeyEvent(true, Enum.KeyCode.E, false, game)
                                     task.wait(3)
                                     VIM:SendKeyEvent(false, Enum.KeyCode.E, false, game)
@@ -447,7 +443,6 @@ task.spawn(function()
                                 end
                                 
                             elseif _G.BossDoorStep == 4 then
-                                print("🎯 Đang tiến vào phòng gọi Boss...")
                                 local spawnPos = CFrame.new(-12275.1, 598.9, -6552.4)
                                 if (player.Character.HumanoidRootPart.Position - spawnPos.Position).Magnitude > 3 then
                                     Tween2(spawnPos)
@@ -463,7 +458,6 @@ task.spawn(function()
                                 end
                             end
                         end
-                    -- SỬ DỤNG LẠI LỆNH REQUEST GỐC CỦA BÁC
                     elseif frags == 5 then Auto_Quest_Yama_3 = true; print("🎯 Yama Q3"); CommF:InvokeServer("CDKQuest", "StartTrial", "Evil")
                     elseif frags == 4 then Auto_Quest_Yama_2 = true; print("🎯 Yama Q2"); CommF:InvokeServer("CDKQuest", "StartTrial", "Evil")
                     elseif frags == 3 then Auto_Quest_Yama_1 = true; print("🎯 Yama Q1"); CommF:InvokeServer("CDKQuest", "StartTrial", "Evil")
@@ -493,112 +487,29 @@ task.spawn(function()
     end
 end)
 
--- Yama Q2 (Haze) 
-_G.HzIdx = _G.HzIdx or 1
-_G.NeedResetFromSubmerged = _G.NeedResetFromSubmerged or false
-
+-- ==========================================
+-- [ĐÃ SỬA] Yama Q2 (Haze) -> TỰ GỌI KAITUN LÀM
+-- ==========================================
+local KaitunHazeLoaded = false
 task.spawn(function()
-    while task.wait() do
+    while task.wait(1) do
         if Auto_Quest_Yama_2 and not _G.AutoFarm_Bone then
             pcall(function()
-                local foundHaze = false
-                local questHaze = player:FindFirstChild("QuestHaze")
-                
-                if questHaze then
-                    for _, hitMon in pairs(questHaze:GetChildren()) do
-                        if hitMon:IsA("IntValue") and hitMon.Value > 0 then
-                            for _, v in pairs(workspace.Enemies:GetChildren()) do
-                                if string.find(v.Name, hitMon.Name) and v:FindFirstChild("HazeESP") and v:FindFirstChild("Humanoid") and v.Humanoid.Health > 0 then
-                                    foundHaze = true
-                                    SmartMove(v.HumanoidRootPart.CFrame * Pos)
-                                    AttackNoCoolDown()
-                                    break
-                                end
-                            end
-                        end
-                        if foundHaze then break end
-                    end
-                end
-                
-                if not foundHaze then
-                    for _, v in pairs(workspace.Enemies:GetChildren()) do
-                        if v:FindFirstChild("HazeESP") and v.Humanoid.Health > 0 then 
-                            foundHaze = true
-                            SmartMove(v.HumanoidRootPart.CFrame * Pos)
-                            AttackNoCoolDown()
-                            break 
-                        end
-                    end
-                end
-                
-                if not foundHaze then
-                    for _, v in pairs(ReplicatedStorage:GetChildren()) do
-                        if v:FindFirstChild("HazeESP") then
-                            foundHaze = true
-                            SmartMove(v.HumanoidRootPart.CFrame * Pos)
-                            break
-                        end
-                    end
-                end
-                
-                if not foundHaze then
-                    local HazeIslands = {
-                        CFrame.new(3399.3, 72.4, 1573.0),   CFrame.new(-2131.0, 38.0, -10106.0),
-                        CFrame.new(-950.0, 59.0, -10907.0), CFrame.new(5138.2, 12.3, 431.6),
-                        CFrame.new(-16204.1, 9.1, 479.2),   CFrame.new(-9509.3, 142.1, 5535.2),
-                        CFrame.new(-12548.0, 337.0, -7481.0),CFrame.new(-247.1, 20.7, 5562.0),
-                        CFrame.new(2443.1, 21.7, -6573.4),  CFrame.new(-10016.0, 332.0, -8326.0),
-                        CFrame.new(-1762.0, 37.8, -11878.0),CFrame.new(127.2, 24.8, -12098.7),
-                        CFrame.new(5319.0, 1005.4, 360.8),  
-                        CFrame.new(-16270.0, 25.2, 1373.8)  
-                    }
+                if not KaitunHazeLoaded then
+                    KaitunHazeLoaded = true
+                    print("🎯 Yama Q2 (Haze): Giao quyền cho BananaCat Kaitun xử lý sương mù...")
                     
-                    if _G.NeedResetFromSubmerged then
-                        print("Yama Q2: Đang tự sát để thoát khỏi Tàu Ngầm...")
-                        Tween2(HazeIslands[_G.HzIdx])
-                        if (player.Character.HumanoidRootPart.Position - HazeIslands[_G.HzIdx].Position).Magnitude < 1500 then
-                            
-                            _G.IsResetting = true 
-                            task.wait(0.2)
-                            
-                            pcall(function()
-                                local char = player.Character
-                                for _,v in pairs(char.HumanoidRootPart:GetChildren()) do
-                                    if v:IsA("BodyVelocity") or v:IsA("BodyGyro") then v:Destroy() end
-                                end
-                                char.Humanoid:ChangeState(Enum.HumanoidStateType.Dead)
-                                char.Humanoid.Health = 0
-                                char:BreakJoints()
-                            end)
-                            
-                            task.wait(6) 
-                            _G.IsResetting = false 
-                            _G.NeedResetFromSubmerged = false
-                        end
-                        
-                    elseif _G.HzIdx == 14 then
-                        print("Yama Q2: Tương tác NPC SubmarineWorkerSpeak...")
-                        Tween2(HazeIslands[14])
-                        if (player.Character.HumanoidRootPart.Position - HazeIslands[14].Position).Magnitude < 15 then
-                            pcall(function()
-                                game:GetService("ReplicatedStorage").Modules.Net["RF/SubmarineWorkerSpeak"]:InvokeServer("TravelToSubmergedIsland")
-                            end)
-                            task.wait(5) 
-                            _G.HzIdx = 1
-                            _G.NeedResetFromSubmerged = true
-                        end
-                        
-                    else
-                        print("Yama Q2: Tuần tra đảo " .. _G.HzIdx .. "/14 (Đợi 5s load quái)")
-                        Tween2(HazeIslands[_G.HzIdx])
-                        if (player.Character.HumanoidRootPart.Position - HazeIslands[_G.HzIdx].Position).Magnitude < 300 then
-                            task.wait(5) 
-                            _G.HzIdx = _G.HzIdx + 1
-                            if _G.HzIdx > 14 then _G.HzIdx = 1 end
-                        end
-                    end
+                    -- Dừng Tween của Auto CDK lại nhường quyền
+                    if _G.CurrentTween then _G.CurrentTween:Cancel() end 
+                    
+                    task.spawn(function()
+                        getgenv().Key = "3c7d878e8162f75ab17d22de"
+                        loadstring(game:HttpGet("https://raw.githubusercontent.com/obiiyeuem/vthangsitink/main/BananaCat-kaitunBF.lua"))()
+                    end)
                 end
             end)
+        else
+            KaitunHazeLoaded = false
         end
     end
 end)
@@ -636,6 +547,7 @@ task.spawn(function()
                     local reaper = workspace.Enemies:FindFirstChild("Soul Reaper")
                     if reaper and reaper.Humanoid.Health > 0 then
                         print("Yama Q3: Hứng đòn từ Soul Reaper...")
+                        pcall(function() player.Character.Humanoid:UnequipTools() end)
                         SmartMove(reaper.HumanoidRootPart.CFrame * CFrame.new(0,0,-2))
                     else
                         if player.Backpack:FindFirstChild("Hallow Essence") or player.Character:FindFirstChild("Hallow Essence") then
