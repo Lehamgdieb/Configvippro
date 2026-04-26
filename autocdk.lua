@@ -71,9 +71,9 @@ _G.IsResetting = false
 
 local Pos = CFrame.new(0, _G.HeightFarm, 0)
 
-local API_SOUL_REAPER = "http://14.174.145.113:8080/get_soulreaper.php"
-local API_CAKE_QUEEN = "http://14.174.145.113:8080/get_cakequeen.php"
-local API_PIRATE_RAID = "http://14.174.145.113:8080/get_pirateraid.php"
+local API_SOUL_REAPER = "http://14.174.148.37:8080/get_soulreaper.php"
+local API_CAKE_QUEEN = "http://14.174.148.37:8080/get_cakequeen.php"
+local API_PIRATE_RAID = "http://14.174.148.37:8080/get_pirateraid.php"
 
 local HttpService = game:GetService("HttpService")
 local RunService = game:GetService("RunService")
