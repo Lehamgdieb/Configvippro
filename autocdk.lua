@@ -488,7 +488,7 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- [ĐÃ SỬA] Yama Q2 (Haze) -> TỰ GỌI KAITUN LÀM
+-- YAMA Q2 (HAZE) -> CHỈ GỌI KAITUN, XÓA CODE TỰ DÒ CŨ
 -- ==========================================
 local KaitunHazeLoaded = false
 task.spawn(function()
@@ -497,13 +497,21 @@ task.spawn(function()
             pcall(function()
                 if not KaitunHazeLoaded then
                     KaitunHazeLoaded = true
-                    print("🎯 Yama Q2 (Haze): Giao quyền cho BananaCat Kaitun xử lý sương mù...")
+                    print("🎯 Yama Q2 (Haze): Đã tắt chế độ Tự dò. Giao quyền cho BananaCat Kaitun!")
                     
-                    -- Dừng Tween của Auto CDK lại nhường quyền
                     if _G.CurrentTween then _G.CurrentTween:Cancel() end 
                     
                     task.spawn(function()
-                        getgenv().Key = "3c7d878e8162f75ab17d22de"
+                        -- Dùng key của ông luôn nè:
+                        getgenv().Key = "f6cb73ad99aabfe6c3234ec7"
+                        
+                        -- Cấu hình cơ bản cho Kaitun chạy Haze
+                        if _G.UltimateConfig and _G.UltimateConfig.Kaitun and _G.UltimateConfig.Kaitun.SettingFarm then
+                            getgenv().SettingFarm = _G.UltimateConfig.Kaitun.SettingFarm
+                        else
+                            getgenv().SettingFarm = { ["White Screen"] = false, ["Hide UI"] = false }
+                        end
+                        
                         loadstring(game:HttpGet("https://raw.githubusercontent.com/obiiyeuem/vthangsitink/main/BananaCat-kaitunBF.lua"))()
                     end)
                 end
@@ -612,16 +620,32 @@ task.spawn(function()
                 
                 local target = dealers[_G.DealerStep]
                 if target then
-                    print("🎯 Tushita Q1: Bay tới Boat Dealer " .. _G.DealerStep .. "/3")
-                    Tween2(target)
-                    
-                    if (player.Character.HumanoidRootPart.Position - target.Position).Magnitude <= 10 then
-                        task.wait(0.7)
-                        CommF:InvokeServer("CDKQuest", "BoatQuest", workspace.NPCs:FindFirstChild("Luxury Boat Dealer"), "Check")
+                    if (player.Character.HumanoidRootPart.Position - target.Position).Magnitude > 15 then
+                        print("🎯 Tushita Q1: Bay tới Boat Dealer " .. _G.DealerStep .. "/3")
+                        Tween2(target)
+                    else
+                        BKP(target)
                         task.wait(0.5)
-                        CommF:InvokeServer("CDKQuest", "BoatQuest", workspace.NPCs:FindFirstChild("Luxury Boat Dealer"))
-                        task.wait(1)
                         
+                        local targetNpc = nil
+                        for _, npc in pairs(workspace.NPCs:GetChildren()) do
+                            if npc.Name == "Luxury Boat Dealer" and (npc.WorldPivot.Position - target.Position).Magnitude < 100 then
+                                targetNpc = npc
+                                break
+                            end
+                        end
+                        
+                        if not targetNpc then 
+                            targetNpc = workspace.NPCs:FindFirstChild("Luxury Boat Dealer") 
+                        end
+                        
+                        if targetNpc then
+                            CommF:InvokeServer("CDKQuest", "BoatQuest", targetNpc, "Check")
+                            task.wait(0.5)
+                            CommF:InvokeServer("CDKQuest", "BoatQuest", targetNpc)
+                        end
+                        
+                        task.wait(1)
                         _G.DealerStep = _G.DealerStep + 1
                         if _G.DealerStep > 3 then _G.DealerStep = 1 end
                     end
