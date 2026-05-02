@@ -428,7 +428,6 @@ task.spawn(function()
         return false
     end
 
-    -- ĐÃ SỬA: Hàm Attack gốc được đồng bộ hóa, đảm bảo CÓ CLICK CHUỘT ẢO để gây sát thương
     local function Attack()
         if _G.IsDoingAutoCDK then return end  
         if not AutoAttack then return end
@@ -452,7 +451,6 @@ task.spawn(function()
             if RegisterAttack then RegisterAttack:FireServer(0) end
             if RegisterHit then pcall(function() RegisterHit:FireServer(targets[1][1]:FindFirstChild("Head") or targets[1][2], targets) end) end
             
-            -- Ép nhân vật click chuột để vũ khí vung lên
             local equippedTool = char:FindFirstChildOfClass("Tool")
             if equippedTool and equippedTool:FindFirstChild("LeftClick") then 
                 equippedTool.LeftClick:FireServer() 
@@ -644,6 +642,7 @@ if cdkCfg.Enabled then
     _G.CurrentSword = "Tushita"
     _G.IsTakingDamage = false
     _G.IsResetting = false
+    _G.IsWalkingBoss = false -- [⚡] Biến giúp tắt Noclip khi đi bộ
     _G.HzIdx = 1
     _G.NeedResetFromSubmerged = false
     _G.BossDoorStep = 1
@@ -758,7 +757,7 @@ end
         local char = plr.Character
         if not char or not char:FindFirstChild("HumanoidRootPart") then return end
         local dist = (targetCFrame.Position - char.HumanoidRootPart.Position).Magnitude
-        if dist > 300 then Tween2(targetCFrame)
+        if dist > 50 then Tween2(targetCFrame) -- [⚡] Chống kẹt Anti-Cheat: Hơn 50 mét mới bay
         elseif dist > 5 then BKP(targetCFrame) end
     end
 
@@ -825,7 +824,8 @@ end
 
     RS.Stepped:Connect(function()
         pcall(function()
-            if (_G.Auto_DualKatana or _G.AutoFarm_Bone) and not _G.IsResetting then
+            -- [⚡] Chỉ bật Noclip nếu KHÔNG ở trạng thái đi bộ đánh Boss (_G.IsWalkingBoss)
+            if (_G.Auto_DualKatana or _G.AutoFarm_Bone) and not _G.IsResetting and not _G.IsWalkingBoss then
                 local char = plr.Character
                 if char and char:FindFirstChild("HumanoidRootPart") then
                     local humanoid = char:FindFirstChild("Humanoid")
@@ -843,7 +843,7 @@ end
     local BoneMobs = {"Reborn Skeleton", "Living Zombie", "Demonic Soul", "Posessed Mummy"}
     local Auto_Quest_Yama_1, Auto_Quest_Yama_2, Auto_Quest_Yama_3 = false, false, false
     local Auto_Quest_Tushita_1, Auto_Quest_Tushita_2, Auto_Quest_Tushita_3 = false, false, false
-    local Auto_Quest_Boss = false -- [⚡] ĐÃ THÊM BIẾN GỌI BOSS
+    local Auto_Quest_Boss = false 
 
     -- ===== VÒNG LẶP MASTERY =====
     task.spawn(function()
@@ -895,7 +895,7 @@ end
         end
     end)
 
-    -- ===== LUỒNG QUEST CHÍNH (ĐÃ THU GỌN CHUẨN XÁC) =====
+    -- ===== LUỒNG QUEST CHÍNH =====
     task.spawn(function()
         while task.wait() do
             if _G.Auto_DualKatana then
@@ -915,13 +915,12 @@ end
                             EquipSword(_G.CurrentSword)
                         end
                         
-                        -- Reset toàn bộ để ưu tiên quest hiện tại
                         Auto_Quest_Yama_1, Auto_Quest_Yama_2, Auto_Quest_Yama_3 = false, false, false
                         Auto_Quest_Tushita_1, Auto_Quest_Tushita_2, Auto_Quest_Tushita_3 = false, false, false
                         Auto_Quest_Boss = false
 
                         if frags == 6 then
-                            Auto_Quest_Boss = true -- [⚡] ĐÃ RÚT GỌN CHỈ CÒN 1 LỆNH
+                            Auto_Quest_Boss = true 
                         elseif frags == 5 then Auto_Quest_Yama_3 = true; CommF_("CDKQuest", "StartTrial", "Evil")
                         elseif frags == 4 then Auto_Quest_Yama_2 = true; CommF_("CDKQuest", "StartTrial", "Evil")
                         elseif frags == 3 then Auto_Quest_Yama_1 = true; CommF_("CDKQuest", "StartTrial", "Evil")
@@ -949,6 +948,7 @@ end
                     local boss = workspace.Enemies:FindFirstChild("Cursed Skeleton Boss")
                     
                     if boss and boss.Humanoid.Health > 0 then 
+                        _G.IsWalkingBoss = false -- Đánh Boss thì tắt trạng thái đi bộ
                         EquipSword(_G.CurrentSword)
                         SmartMove(boss.HumanoidRootPart.CFrame * Pos)
                         AttackNoCoolDown()
@@ -958,9 +958,13 @@ end
                         local stonePillar = CFrame.new(-12357.7, 603.6, -6551.8) 
                         local bossRoom = CFrame.new(-12264.8, 599.2, -6560.8)    
 
-                        if (plr.Character.HumanoidRootPart.Position - stonePillar.Position).Magnitude > 300 then
-                            Tween2(stonePillar)
+                        -- Nếu ở xa hơn 30 mét thì bay tới (không được để 300 mét dễ dính Anti Cheat)
+                        if (plr.Character.HumanoidRootPart.Position - stonePillar.Position).Magnitude > 30 then
+                            _G.IsWalkingBoss = false
+                            SmartMove(stonePillar)
                         else
+                            _G.IsWalkingBoss = true -- Bật trạng thái đi bộ, TẮT Noclip
+
                             local function clickToSkip()
                                 pcall(function()
                                     local cam = workspace.CurrentCamera
@@ -995,7 +999,7 @@ end
                             -- [5] CHẠY BỘ TỪ PHÒNG BOSS NGƯỢC RA NGOÀI BỆ ĐÁ
                             for i = 1, 15 do 
                                 task.wait(0.5) 
-                                if workspace.Enemies:FindFirstChild("Cursed Skeleton Boss") then
+                                if workspace.Enemies:FindFirstChild("Cursed Skeleton Boss") or not plr.Character or plr.Character.Humanoid.Health <= 0 then
                                     pcall(function() plr.Character.Humanoid:MoveTo(plr.Character.HumanoidRootPart.Position) end) 
                                     break 
                                 end
@@ -1006,6 +1010,7 @@ end
                             end
                             
                             CommF_("CDKQuest", "BuyCDK") 
+                            _G.IsWalkingBoss = false -- Chạy bộ xong thì trả lại Noclip bình thường
                         end
                     end
                 end)
@@ -1029,7 +1034,7 @@ task.spawn(function()
     end
 end)
 
--- ĐÃ SỬA: Dùng Kaitun riêng của Sếp để gánh Yama Q2, KHÔNG DÙNG BananaHub nữa
+-- Yama Q2 (Kaitun của Sếp)
 task.spawn(function()
     while task.wait(3) do
         if Auto_Quest_Yama_2 and not _G.AutoFarm_Bone then
@@ -1341,7 +1346,6 @@ end)
                 local hasC = hasCDK()
                 local raceStatus = checkRaceV3()
 
-                -- Nếu đã có CDK rồi thì không cần chạy nữa
                 if hasC then
                     if _G.Auto_DualKatana then
                         _G.Auto_DualKatana = false
@@ -1351,7 +1355,6 @@ end)
                     return
                 end
 
-                -- Nếu có cả Yama và Tushita nhưng chưa V3 -> ưu tiên V3, tắt CDK nếu đang chạy
                 if hasY and hasT and not hasC then
                     if raceStatus ~= "V3" and raceStatus ~= "V4" then
                         if _G.Auto_DualKatana then
@@ -1361,7 +1364,6 @@ end)
                         end
                         return
                     else
-                        -- Đủ điều kiện: bật Auto CDK
                         if not _G.Auto_DualKatana then
                             _G.Auto_DualKatana = true
                             _G.IsDoingAutoCDK = true
@@ -1371,7 +1373,6 @@ end)
                     end
                 end
 
-                -- Nếu chưa đủ kiếm thì tắt CDK
                 if _G.Auto_DualKatana then
                     _G.Auto_DualKatana = false
                     _G.IsDoingAutoCDK = false
@@ -1383,7 +1384,7 @@ end)
 end
 
 -- =====================================================================
--- RACE MASTER (ĐÃ SỬA LỖI BAY VÀO NHƯNG KHÔNG CHÉM)
+-- RACE MASTER
 -- =====================================================================
 task.spawn(function()
     while task.wait(2) do
@@ -1407,7 +1408,6 @@ task.spawn(function()
             local API_NIGHT = "http://14.185.47.226:8080/get_cursedcaptain.php"
             local API_MARK_V = "http://14.185.47.226:8080/mark_visited.php"
 
-            -- ĐÃ SỬA: Hàm TP cho Race Master, giải quyết vụ lơ lửng không chém
             local function TP(cf)
                 pcall(function()
                     local char = plr.Character
@@ -1415,7 +1415,6 @@ task.spawn(function()
                     local root = char.HumanoidRootPart
                     local dist = (cf.Position - root.Position).Magnitude
                     
-                    -- NẾU GẦN: Khóa CFrame ngay lập tức để chém
                     if dist < 300 then
                         root.CFrame = cf
                         local bv = root:FindFirstChild("AntiFall_Race")
@@ -1428,7 +1427,6 @@ task.spawn(function()
                         return
                     end
                     
-                    -- NẾU XA: Dùng Tween để bay đến
                     local bv = root:FindFirstChild("AntiFall_Race")
                     if not bv then
                         bv = Instance.new("BodyVelocity", root)
@@ -1467,7 +1465,6 @@ task.spawn(function()
 
             task.spawn(function()
                 while task.wait(1.5) do
-                    -- 🔒 CHẶN RACE MASTER KHI ĐANG AUTO CDK
                     if _G.IsDoingAutoCDK then
                         _G.AutoRaceV2 = false
                         _G.AutoRaceV3 = false
