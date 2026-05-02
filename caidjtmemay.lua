@@ -169,11 +169,14 @@ local function TryLoadKaitun()
         return
     end
 
+    -- ĐÃ SỬA: Đọc config xem có ép buộc V3 không
+    local requireV3 = (bananaCfg.AutoRaceV3 ~= false)
+
     if doingHaze or hasCDK() or ((not hasYama() or not hasTushita()) and not _G.IsDoingAutoCDK) then
         local raceStatus = checkRaceV3()
-        if raceStatus == "V3" or raceStatus == "V4" then
+        if (raceStatus == "V3" or raceStatus == "V4") or not requireV3 then
             KaitunLoaded = true
-            print("[Kaitun] Kích hoạt (Đủ điều kiện đặc biệt + V3/V4)")
+            print("[Kaitun] Kích hoạt (Đủ điều kiện hoặc đã Skip Race V3)")
             task.spawn(function()
                 getgenv().Key = kaitunCfg.Key or ""
                 getgenv().SettingFarm = kaitunCfg.SettingFarm or {}
@@ -440,7 +443,6 @@ task.spawn(function()
         return false
     end
 
-    -- ĐÃ SỬA: Hàm Attack gốc được đồng bộ hóa, đảm bảo CÓ CLICK CHUỘT ẢO để gây sát thương
     local function Attack()
         if _G.IsDoingAutoCDK then return end  
         if not AutoAttack then return end
@@ -464,7 +466,6 @@ task.spawn(function()
             if RegisterAttack then RegisterAttack:FireServer(0) end
             if RegisterHit then pcall(function() RegisterHit:FireServer(targets[1][1]:FindFirstChild("Head") or targets[1][2], targets) end) end
             
-            -- Ép nhân vật click chuột để vũ khí vung lên
             local equippedTool = char:FindFirstChildOfClass("Tool")
             if equippedTool and equippedTool:FindFirstChild("LeftClick") then 
                 equippedTool.LeftClick:FireServer() 
@@ -656,7 +657,7 @@ if cdkCfg.Enabled then
     _G.CurrentSword = "Tushita"
     _G.IsTakingDamage = false
     _G.IsResetting = false
-    _G.IsWalkingBoss = false -- [⚡] Biến tắt Noclip khi đi bộ làm Boss
+    _G.IsWalkingBoss = false
     _G.HzIdx = 1
     _G.NeedResetFromSubmerged = false
     _G.BossDoorStep = 1
@@ -722,7 +723,6 @@ local function EquipSword(itemName)
     end
 end
 
-    -- [⚡] SỬA LỖI TWEEN CHỐNG ĐỨNG IM BỊ GIẬT
     local function Tween2(targetCFrame)
         pcall(function()
             local char = plr.Character
@@ -730,17 +730,13 @@ end
             local Root = char.HumanoidRootPart
             local dist = (targetCFrame.Position - Root.Position).Magnitude
             if dist < 5 then Root.CFrame = targetCFrame; return end
-            
-            -- Tránh giật khi spam gọi Tween liên tục
-            if _G.CurrentTween and _G.CurrentTweenTarget and (_G.CurrentTweenTarget.Position - targetCFrame.Position).Magnitude < 15 then
-                if _G.CurrentTween.PlaybackState == Enum.PlaybackState.Playing then return end
-            end
-            
             if not Root:FindFirstChild("BodyVelocity") then
                 local bv = Instance.new("BodyVelocity", Root)
                 bv.MaxForce = Vector3.new(9e9, 9e9, 9e9); bv.Velocity = Vector3.zero
             end
-            
+            if _G.CurrentTween and _G.CurrentTweenTarget and (_G.CurrentTweenTarget.Position - targetCFrame.Position).Magnitude < 10 then
+                if _G.CurrentTween.PlaybackState == Enum.PlaybackState.Playing then return end
+            end
             if _G.CurrentTween then _G.CurrentTween:Cancel() end
             _G.CurrentTweenTarget = targetCFrame
             _G.CurrentTween = TS:Create(Root, TweenInfo.new(dist/315, Enum.EasingStyle.Linear), {CFrame = targetCFrame})
@@ -832,7 +828,6 @@ end
 
     RS.Stepped:Connect(function()
         pcall(function()
-            -- Tắt NOCLIP nếu đang đi bộ gọi Boss để không kẹt
             if (_G.Auto_DualKatana or _G.AutoFarm_Bone) and not _G.IsResetting and not _G.IsWalkingBoss then
                 local char = plr.Character
                 if char and char:FindFirstChild("HumanoidRootPart") then
@@ -899,7 +894,7 @@ end
         end
     end)
 
-    -- ===== LUỒNG QUEST CHÍNH (SỬ DỤNG CACHE TRÁNH LAG) =====
+    -- ===== LUỒNG QUEST CHÍNH =====
     task.spawn(function()
         while task.wait(0.5) do
             if _G.Auto_DualKatana then
@@ -952,7 +947,7 @@ end
                     local boss = workspace.Enemies:FindFirstChild("Cursed Skeleton Boss")
                     
                     if boss and boss.Humanoid.Health > 0 then 
-                        _G.IsWalkingBoss = false
+                        _G.IsWalkingBoss = false 
                         EquipSword(_G.CurrentSword)
                         SmartMove(boss.HumanoidRootPart.CFrame * Pos)
                         AttackNoCoolDown()
@@ -1001,10 +996,7 @@ end
                                     pcall(function() plr.Character.Humanoid:MoveTo(plr.Character.HumanoidRootPart.Position) end) 
                                     break 
                                 end
-                                
-                                pcall(function()
-                                    plr.Character.Humanoid:MoveTo(stonePillar.Position)
-                                end)
+                                pcall(function() plr.Character.Humanoid:MoveTo(stonePillar.Position) end)
                             end
                             
                             CommF_("CDKQuest", "BuyCDK") 
@@ -1032,7 +1024,7 @@ task.spawn(function()
     end
 end)
 
--- 🎯 SỬ DỤNG KAITUN CHO YAMA Q2 HAZE QUEST
+-- Yama Q2 (Haze)
 task.spawn(function()
     while task.wait(3) do
         if Auto_Quest_Yama_2 and not _G.AutoFarm_Bone then
@@ -1339,8 +1331,10 @@ end)
                 local hasT = hasTushita()
                 local hasC = hasCDK()
                 local raceStatus = checkRaceV3()
+                
+                -- ĐÃ SỬA: Lọc xem Config có bắt buộc lấy V3 không
+                local requireV3 = (bananaCfg.AutoRaceV3 ~= false)
 
-                -- Nếu đã có CDK rồi thì không cần chạy nữa
                 if hasC then
                     if _G.Auto_DualKatana then
                         _G.Auto_DualKatana = false
@@ -1350,9 +1344,9 @@ end)
                     return
                 end
 
-                -- Nếu có cả Yama và Tushita nhưng chưa V3 -> ưu tiên V3, tắt CDK nếu đang chạy
                 if hasY and hasT and not hasC then
-                    if raceStatus ~= "V3" and raceStatus ~= "V4" then
+                    -- Nếu bắt buộc V3 MÀ chưa có V3 thì tạm tắt CDK
+                    if requireV3 and (raceStatus ~= "V3" and raceStatus ~= "V4") then
                         if _G.Auto_DualKatana then
                             _G.Auto_DualKatana = false
                             _G.IsDoingAutoCDK = false
@@ -1360,7 +1354,7 @@ end)
                         end
                         return
                     else
-                        -- Đủ điều kiện: bật Auto CDK
+                        -- Đủ điều kiện HOẶC sếp đã tắt Race V3 -> Bật Auto CDK ngay!
                         if not _G.Auto_DualKatana then
                             _G.Auto_DualKatana = true
                             _G.IsDoingAutoCDK = true
@@ -1370,7 +1364,6 @@ end)
                     end
                 end
 
-                -- Nếu chưa đủ kiếm thì tắt CDK
                 if _G.Auto_DualKatana then
                     _G.Auto_DualKatana = false
                     _G.IsDoingAutoCDK = false
