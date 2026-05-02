@@ -843,6 +843,7 @@ end
     local BoneMobs = {"Reborn Skeleton", "Living Zombie", "Demonic Soul", "Posessed Mummy"}
     local Auto_Quest_Yama_1, Auto_Quest_Yama_2, Auto_Quest_Yama_3 = false, false, false
     local Auto_Quest_Tushita_1, Auto_Quest_Tushita_2, Auto_Quest_Tushita_3 = false, false, false
+    local Auto_Quest_Boss = false -- [⚡] ĐÃ THÊM BIẾN GỌI BOSS
 
     -- ===== VÒNG LẶP MASTERY =====
     task.spawn(function()
@@ -894,13 +895,14 @@ end
         end
     end)
 
-    -- ===== LUỒNG QUEST CHÍNH =====
+    -- ===== LUỒNG QUEST CHÍNH (ĐÃ THU GỌN CHUẨN XÁC) =====
     task.spawn(function()
         while task.wait() do
             if _G.Auto_DualKatana then
                 if _G.AutoFarm_Bone then
                     Auto_Quest_Yama_1, Auto_Quest_Yama_2, Auto_Quest_Yama_3 = false, false, false
                     Auto_Quest_Tushita_1, Auto_Quest_Tushita_2, Auto_Quest_Tushita_3 = false, false, false
+                    Auto_Quest_Boss = false
                 else
                     pcall(function()
                         local frags = GetMaterial("Alucard Fragment")
@@ -909,74 +911,17 @@ end
                         if frags == 5 and not workspace.Map:FindFirstChild("HellDimension") then
                             if workspace.Enemies:FindFirstChild("Soul Reaper") then _G.IsTakingDamage = true end
                         end
-                       if not _G.IsTakingDamage then
-    EquipSword(_G.CurrentSword)
-end
+                        if not _G.IsTakingDamage then
+                            EquipSword(_G.CurrentSword)
+                        end
+                        
+                        -- Reset toàn bộ để ưu tiên quest hiện tại
                         Auto_Quest_Yama_1, Auto_Quest_Yama_2, Auto_Quest_Yama_3 = false, false, false
                         Auto_Quest_Tushita_1, Auto_Quest_Tushita_2, Auto_Quest_Tushita_3 = false, false, false
+                        Auto_Quest_Boss = false
 
                         if frags == 6 then
-                            local boss = workspace.Enemies:FindFirstChild("Cursed Skeleton Boss")
-                            
-                            if boss and boss.Humanoid.Health > 0 then 
-                                SmartMove(boss.HumanoidRootPart.CFrame * Pos)
-                                AttackNoCoolDown()
-                            else
-                                local tushitaScroll = CFrame.new(-12391.3, 603.6, -6596.8)
-                                local yamaScroll = CFrame.new(-12391.4, 603.6, -6502.5)
-                                local stonePillar = CFrame.new(-12357.7, 603.6, -6551.8) 
-                                local bossRoom = CFrame.new(-12264.8, 599.2, -6560.8)    
-        
-                                if (plr.Character.HumanoidRootPart.Position - stonePillar.Position).Magnitude > 300 then
-                                    Tween2(stonePillar)
-                                else
-                                    local function clickToSkip()
-                                        pcall(function()
-                                            local cam = workspace.CurrentCamera
-                                            VIM:SendMouseButtonEvent(cam.ViewportSize.X/2, cam.ViewportSize.Y/2, 0, true, game, 0)
-                                            task.wait(0.1)
-                                            VIM:SendMouseButtonEvent(cam.ViewportSize.X/2, cam.ViewportSize.Y/2, 0, false, game, 0)
-                                        end)
-                                    end
-        
-                                    -- [1] Bệ Tushita
-                                    plr.Character.HumanoidRootPart.CFrame = tushitaScroll
-                                    task.wait(0.5); VIM:SendKeyEvent(true, Enum.KeyCode.E, false, game); task.wait(0.5); VIM:SendKeyEvent(false, Enum.KeyCode.E, false, game); task.wait(0.5); clickToSkip(); task.wait(0.5)
-                                    
-                                    -- [2] Bệ Yama
-                                    plr.Character.HumanoidRootPart.CFrame = yamaScroll
-                                    task.wait(0.5); VIM:SendKeyEvent(true, Enum.KeyCode.E, false, game); task.wait(0.5); VIM:SendKeyEvent(false, Enum.KeyCode.E, false, game); task.wait(0.5); clickToSkip(); task.wait(0.5)
-                                    
-                                    -- [3] CỘT ĐÁ
-                                    plr.Character.HumanoidRootPart.CFrame = stonePillar
-                                    task.wait(0.5); VIM:SendKeyEvent(true, Enum.KeyCode.E, false, game); task.wait(0.5); VIM:SendKeyEvent(false, Enum.KeyCode.E, false, game); task.wait(0.5); clickToSkip(); task.wait(0.5)
-                                    
-                                    -- [4] BAY VÀO PHÒNG BOSS 
-                                    plr.Character.HumanoidRootPart.CFrame = bossRoom
-                                    
-                                    if _G.CurrentTween then _G.CurrentTween:Cancel() end
-                                    pcall(function()
-                                        local bv = plr.Character.HumanoidRootPart:FindFirstChild("BodyVelocity")
-                                        if bv then bv:Destroy() end
-                                    end)
-                                    task.wait(0.5) 
-                                    
-                                    -- [5] CHẠY BỘ TỪ PHÒNG BOSS NGƯỢC RA NGOÀI BỆ ĐÁ
-                                    for i = 1, 15 do 
-                                        task.wait(0.5) 
-                                        if workspace.Enemies:FindFirstChild("Cursed Skeleton Boss") then
-                                            pcall(function() plr.Character.Humanoid:MoveTo(plr.Character.HumanoidRootPart.Position) end) 
-                                            break 
-                                        end
-                                        
-                                        pcall(function()
-                                            plr.Character.Humanoid:MoveTo(stonePillar.Position)
-                                        end)
-                                    end
-                                    
-                                    CommF_("CDKQuest", "BuyCDK") 
-                                end
-                            end
+                            Auto_Quest_Boss = true -- [⚡] ĐÃ RÚT GỌN CHỈ CÒN 1 LỆNH
                         elseif frags == 5 then Auto_Quest_Yama_3 = true; CommF_("CDKQuest", "StartTrial", "Evil")
                         elseif frags == 4 then Auto_Quest_Yama_2 = true; CommF_("CDKQuest", "StartTrial", "Evil")
                         elseif frags == 3 then Auto_Quest_Yama_1 = true; CommF_("CDKQuest", "StartTrial", "Evil")
@@ -990,6 +935,80 @@ end
                         end
                     end)
                 end
+            end
+        end
+    end)
+
+    -- ====================================================
+    -- ⚡ CDK BOSS (TỰ ĐỘNG ĐI KÍCH HOẠT VÀ ĐÁNH BOSS)
+    -- ====================================================
+    task.spawn(function()
+        while task.wait() do
+            if Auto_Quest_Boss and not _G.AutoFarm_Bone then
+                pcall(function()
+                    local boss = workspace.Enemies:FindFirstChild("Cursed Skeleton Boss")
+                    
+                    if boss and boss.Humanoid.Health > 0 then 
+                        EquipSword(_G.CurrentSword)
+                        SmartMove(boss.HumanoidRootPart.CFrame * Pos)
+                        AttackNoCoolDown()
+                    else
+                        local tushitaScroll = CFrame.new(-12391.3, 603.6, -6596.8)
+                        local yamaScroll = CFrame.new(-12391.4, 603.6, -6502.5)
+                        local stonePillar = CFrame.new(-12357.7, 603.6, -6551.8) 
+                        local bossRoom = CFrame.new(-12264.8, 599.2, -6560.8)    
+
+                        if (plr.Character.HumanoidRootPart.Position - stonePillar.Position).Magnitude > 300 then
+                            Tween2(stonePillar)
+                        else
+                            local function clickToSkip()
+                                pcall(function()
+                                    local cam = workspace.CurrentCamera
+                                    VIM:SendMouseButtonEvent(cam.ViewportSize.X/2, cam.ViewportSize.Y/2, 0, true, game, 0)
+                                    task.wait(0.1)
+                                    VIM:SendMouseButtonEvent(cam.ViewportSize.X/2, cam.ViewportSize.Y/2, 0, false, game, 0)
+                                end)
+                            end
+
+                            -- [1] Bệ Tushita
+                            plr.Character.HumanoidRootPart.CFrame = tushitaScroll
+                            task.wait(0.5); VIM:SendKeyEvent(true, Enum.KeyCode.E, false, game); task.wait(0.5); clickToSkip(); task.wait(0.5)
+                            
+                            -- [2] Bệ Yama
+                            plr.Character.HumanoidRootPart.CFrame = yamaScroll
+                            task.wait(0.5); VIM:SendKeyEvent(true, Enum.KeyCode.E, false, game); task.wait(0.5); clickToSkip(); task.wait(0.5)
+                            
+                            -- [3] CỘT ĐÁ
+                            plr.Character.HumanoidRootPart.CFrame = stonePillar
+                            task.wait(0.5); VIM:SendKeyEvent(true, Enum.KeyCode.E, false, game); task.wait(0.5); clickToSkip(); task.wait(0.5)
+                            
+                            -- [4] BAY VÀO PHÒNG BOSS 
+                            plr.Character.HumanoidRootPart.CFrame = bossRoom
+                            
+                            if _G.CurrentTween then _G.CurrentTween:Cancel() end
+                            pcall(function()
+                                local bv = plr.Character.HumanoidRootPart:FindFirstChild("BodyVelocity")
+                                if bv then bv:Destroy() end
+                            end)
+                            task.wait(0.5) 
+                            
+                            -- [5] CHẠY BỘ TỪ PHÒNG BOSS NGƯỢC RA NGOÀI BỆ ĐÁ
+                            for i = 1, 15 do 
+                                task.wait(0.5) 
+                                if workspace.Enemies:FindFirstChild("Cursed Skeleton Boss") then
+                                    pcall(function() plr.Character.Humanoid:MoveTo(plr.Character.HumanoidRootPart.Position) end) 
+                                    break 
+                                end
+                                
+                                pcall(function()
+                                    plr.Character.Humanoid:MoveTo(stonePillar.Position)
+                                end)
+                            end
+                            
+                            CommF_("CDKQuest", "BuyCDK") 
+                        end
+                    end
+                end)
             end
         end
     end)
