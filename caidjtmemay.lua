@@ -57,6 +57,28 @@ local function checkRaceV3()
 end
 
 -- =====================================================================
+-- AUTO STORE FRUIT (TỰ CẤT TRÁI ÁC QUỶ) 🍎
+-- =====================================================================
+task.spawn(function()
+    while task.wait(2) do
+        pcall(function()
+            local function storeFruit(tool)
+                if tool:IsA("Tool") and (tool.ToolTip == "Blox Fruit" or string.find(tool.Name, "Fruit")) then
+                    CommF_("StoreFruit", tool:GetAttribute("OriginalName") or tool.Name, tool)
+                end
+            end
+            
+            if plr.Backpack then
+                for _, v in pairs(plr.Backpack:GetChildren()) do storeFruit(v) end
+            end
+            if plr.Character then
+                for _, v in pairs(plr.Character:GetChildren()) do storeFruit(v) end
+            end
+        end)
+    end
+end)
+
+-- =====================================================================
 -- KIỂM TRA VŨ KHÍ (YAMA, TUSHITA, CDK)
 -- =====================================================================
 local function checkWeapon(weaponName)
@@ -169,7 +191,6 @@ local function TryLoadKaitun()
         return
     end
 
-    -- ĐÃ SỬA: Đọc config xem có ép buộc V3 không
     local requireV3 = (bananaCfg.AutoRaceV3 ~= false)
 
     if doingHaze or hasCDK() or ((not hasYama() or not hasTushita()) and not _G.IsDoingAutoCDK) then
@@ -1024,7 +1045,7 @@ task.spawn(function()
     end
 end)
 
--- Yama Q2 (Haze)
+-- Yama Q2 (Kaitun của Sếp)
 task.spawn(function()
     while task.wait(3) do
         if Auto_Quest_Yama_2 and not _G.AutoFarm_Bone then
@@ -1332,7 +1353,6 @@ end)
                 local hasC = hasCDK()
                 local raceStatus = checkRaceV3()
                 
-                -- ĐÃ SỬA: Lọc xem Config có bắt buộc lấy V3 không
                 local requireV3 = (bananaCfg.AutoRaceV3 ~= false)
 
                 if hasC then
@@ -1345,7 +1365,6 @@ end)
                 end
 
                 if hasY and hasT and not hasC then
-                    -- Nếu bắt buộc V3 MÀ chưa có V3 thì tạm tắt CDK
                     if requireV3 and (raceStatus ~= "V3" and raceStatus ~= "V4") then
                         if _G.Auto_DualKatana then
                             _G.Auto_DualKatana = false
@@ -1354,7 +1373,6 @@ end)
                         end
                         return
                     else
-                        -- Đủ điều kiện HOẶC sếp đã tắt Race V3 -> Bật Auto CDK ngay!
                         if not _G.Auto_DualKatana then
                             _G.Auto_DualKatana = true
                             _G.IsDoingAutoCDK = true
