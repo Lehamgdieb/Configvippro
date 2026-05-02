@@ -79,20 +79,32 @@ local function hasYama() return checkWeapon("Yama") end
 local function hasTushita() return checkWeapon("Tushita") end
 local function hasCDK() return checkWeapon("Cursed Dual Katana") end
 
-local function isDoingHazeQuest()
-    local frags = 0
-    pcall(function()
-        local inv = CommF_("getInventory")
-        if type(inv) == "table" then
-            for _, item in pairs(inv) do
-                if item.Name == "Alucard Fragment" then
-                    frags = item.Count or 0
-                    break
+-- [⚡] BỘ NHỚ TẠM (CACHE) TÚI ĐỒ CHỐNG LAG SERVER (Dùng chung cho cả Kaitun và CDK)
+local currentFrags = 0
+local ym_mas_cache = 0
+local ts_mas_cache = 0
+
+task.spawn(function()
+    while task.wait(2.5) do 
+        pcall(function()
+            local inv = CommF_("getInventory")
+            if type(inv) == "table" then
+                local f, ym, ts = 0, 0, 0
+                for _, item in pairs(inv) do
+                    if item.Name == "Alucard Fragment" then f = item.Count or 0 end
+                    if item.Name == "Yama" then ym = item.Mastery or 0 end
+                    if item.Name == "Tushita" then ts = item.Mastery or 0 end
                 end
+                currentFrags = f
+                ym_mas_cache = ym
+                ts_mas_cache = ts
             end
-        end
-    end)
-    if frags == 4 or frags == 5 then
+        end)
+    end
+end)
+
+local function isDoingHazeQuest()
+    if currentFrags == 4 or currentFrags == 5 then
         local progress = CommF_("CDKQuest", "Progress")
         if progress and progress.Evil then
             return true
@@ -628,7 +640,7 @@ task.spawn(function()
         end
     end)
     print("⚡ VIP TRACKER & HOPPER: Loaded without Key")
-end
+end)
 
 -- =====================================================================
 -- HỆ THỐNG ƯU TIÊN & AUTO CDK 
@@ -644,7 +656,7 @@ if cdkCfg.Enabled then
     _G.CurrentSword = "Tushita"
     _G.IsTakingDamage = false
     _G.IsResetting = false
-    _G.IsWalkingBoss = false -- [⚡] Biến giúp tắt Noclip khi đi bộ
+    _G.IsWalkingBoss = false -- [⚡] Biến tắt Noclip khi đi bộ làm Boss
     _G.HzIdx = 1
     _G.NeedResetFromSubmerged = false
     _G.BossDoorStep = 1
@@ -710,16 +722,7 @@ local function EquipSword(itemName)
     end
 end
 
-    local function GetMaterial(matName)
-        local inv = CommF_("getInventory")
-        if type(inv) == "table" then
-            for _, item in pairs(inv) do
-                if item.Name == matName then return item.Count or 1 end
-            end
-        end
-        return 0
-    end
-
+    -- [⚡] SỬA LỖI TWEEN CHỐNG ĐỨNG IM BỊ GIẬT
     local function Tween2(targetCFrame)
         pcall(function()
             local char = plr.Character
@@ -727,13 +730,17 @@ end
             local Root = char.HumanoidRootPart
             local dist = (targetCFrame.Position - Root.Position).Magnitude
             if dist < 5 then Root.CFrame = targetCFrame; return end
+            
+            -- Tránh giật khi spam gọi Tween liên tục
+            if _G.CurrentTween and _G.CurrentTweenTarget and (_G.CurrentTweenTarget.Position - targetCFrame.Position).Magnitude < 15 then
+                if _G.CurrentTween.PlaybackState == Enum.PlaybackState.Playing then return end
+            end
+            
             if not Root:FindFirstChild("BodyVelocity") then
                 local bv = Instance.new("BodyVelocity", Root)
                 bv.MaxForce = Vector3.new(9e9, 9e9, 9e9); bv.Velocity = Vector3.zero
             end
-            if _G.CurrentTween and _G.CurrentTweenTarget and (_G.CurrentTweenTarget.Position - targetCFrame.Position).Magnitude < 10 then
-                if _G.CurrentTween.PlaybackState == Enum.PlaybackState.Playing then return end
-            end
+            
             if _G.CurrentTween then _G.CurrentTween:Cancel() end
             _G.CurrentTweenTarget = targetCFrame
             _G.CurrentTween = TS:Create(Root, TweenInfo.new(dist/315, Enum.EasingStyle.Linear), {CFrame = targetCFrame})
@@ -759,8 +766,7 @@ end
         local char = plr.Character
         if not char or not char:FindFirstChild("HumanoidRootPart") then return end
         local dist = (targetCFrame.Position - char.HumanoidRootPart.Position).Magnitude
-        if dist > 50 then Tween2(targetCFrame) -- [⚡] Chống kẹt Anti-Cheat: Hơn 50 mét mới bay
-        elseif dist > 5 then BKP(targetCFrame) end
+        if dist > 50 then Tween2(targetCFrame) else BKP(targetCFrame) end
     end
 
     local function AutoHopCDK(apiUrl, reason)
@@ -826,7 +832,7 @@ end
 
     RS.Stepped:Connect(function()
         pcall(function()
-            -- [⚡] Chỉ bật Noclip nếu KHÔNG ở trạng thái đi bộ đánh Boss (_G.IsWalkingBoss)
+            -- Tắt NOCLIP nếu đang đi bộ gọi Boss để không kẹt
             if (_G.Auto_DualKatana or _G.AutoFarm_Bone) and not _G.IsResetting and not _G.IsWalkingBoss then
                 local char = plr.Character
                 if char and char:FindFirstChild("HumanoidRootPart") then
@@ -852,20 +858,16 @@ end
         while task.wait(1) do
             if _G.Auto_DualKatana then
                 pcall(function()
-                    local inv = CommF_("getInventory")
-                    local ym_mas, ts_mas = 0, 0
-                    if type(inv) == "table" then
-                        for _, item in pairs(inv) do
-                            if item.Name == "Yama" then ym_mas = item.Mastery or 0
-                            elseif item.Name == "Tushita" then ts_mas = item.Mastery or 0 end
+                    if currentFrags < 6 then
+                        if _G.CurrentSword == "Tushita" then
+                            if ts_mas_cache < _G.TargetMastery then _G.AutoFarm_Bone = true
+                            else _G.CurrentSword = "Yama" end
+                        elseif _G.CurrentSword == "Yama" then
+                            if ym_mas_cache < _G.TargetMastery then _G.AutoFarm_Bone = true
+                            else _G.AutoFarm_Bone = false end
                         end
-                    end
-                    if _G.CurrentSword == "Tushita" then
-                        if ts_mas < _G.TargetMastery then _G.AutoFarm_Bone = true
-                        else _G.CurrentSword = "Yama" end
-                    elseif _G.CurrentSword == "Yama" then
-                        if ym_mas < _G.TargetMastery then _G.AutoFarm_Bone = true
-                        else _G.AutoFarm_Bone = false end
+                    else
+                        _G.AutoFarm_Bone = false
                     end
                 end)
             end
@@ -897,9 +899,9 @@ end
         end
     end)
 
-    -- ===== LUỒNG QUEST CHÍNH =====
+    -- ===== LUỒNG QUEST CHÍNH (SỬ DỤNG CACHE TRÁNH LAG) =====
     task.spawn(function()
-        while task.wait() do
+        while task.wait(0.5) do
             if _G.Auto_DualKatana then
                 if _G.AutoFarm_Bone then
                     Auto_Quest_Yama_1, Auto_Quest_Yama_2, Auto_Quest_Yama_3 = false, false, false
@@ -907,7 +909,7 @@ end
                     Auto_Quest_Boss = false
                 else
                     pcall(function()
-                        local frags = GetMaterial("Alucard Fragment")
+                        local frags = currentFrags
                         _G.IsTakingDamage = false
                         if frags == 3 then _G.IsTakingDamage = true end
                         if frags == 5 and not workspace.Map:FindFirstChild("HellDimension") then
@@ -950,7 +952,7 @@ end
                     local boss = workspace.Enemies:FindFirstChild("Cursed Skeleton Boss")
                     
                     if boss and boss.Humanoid.Health > 0 then 
-                        _G.IsWalkingBoss = false -- Đánh Boss thì tắt trạng thái đi bộ
+                        _G.IsWalkingBoss = false
                         EquipSword(_G.CurrentSword)
                         SmartMove(boss.HumanoidRootPart.CFrame * Pos)
                         AttackNoCoolDown()
@@ -960,12 +962,11 @@ end
                         local stonePillar = CFrame.new(-12357.7, 603.6, -6551.8) 
                         local bossRoom = CFrame.new(-12264.8, 599.2, -6560.8)    
 
-                        -- Nếu ở xa hơn 30 mét thì bay tới (không được để 300 mét dễ dính Anti Cheat)
-                        if (plr.Character.HumanoidRootPart.Position - stonePillar.Position).Magnitude > 30 then
+                        if (plr.Character.HumanoidRootPart.Position - stonePillar.Position).Magnitude > 150 then
                             _G.IsWalkingBoss = false
                             SmartMove(stonePillar)
                         else
-                            _G.IsWalkingBoss = true -- Bật trạng thái đi bộ, TẮT Noclip
+                            _G.IsWalkingBoss = true 
 
                             local function clickToSkip()
                                 pcall(function()
@@ -976,29 +977,24 @@ end
                                 end)
                             end
 
-                            -- [1] Bệ Tushita
-                            plr.Character.HumanoidRootPart.CFrame = tushitaScroll
-                            task.wait(0.5); VIM:SendKeyEvent(true, Enum.KeyCode.E, false, game); task.wait(0.5); clickToSkip(); task.wait(0.5)
-                            
-                            -- [2] Bệ Yama
-                            plr.Character.HumanoidRootPart.CFrame = yamaScroll
-                            task.wait(0.5); VIM:SendKeyEvent(true, Enum.KeyCode.E, false, game); task.wait(0.5); clickToSkip(); task.wait(0.5)
-                            
-                            -- [3] CỘT ĐÁ
-                            plr.Character.HumanoidRootPart.CFrame = stonePillar
-                            task.wait(0.5); VIM:SendKeyEvent(true, Enum.KeyCode.E, false, game); task.wait(0.5); clickToSkip(); task.wait(0.5)
-                            
-                            -- [4] BAY VÀO PHÒNG BOSS 
-                            plr.Character.HumanoidRootPart.CFrame = bossRoom
-                            
                             if _G.CurrentTween then _G.CurrentTween:Cancel() end
                             pcall(function()
                                 local bv = plr.Character.HumanoidRootPart:FindFirstChild("BodyVelocity")
                                 if bv then bv:Destroy() end
                             end)
+
+                            plr.Character.HumanoidRootPart.CFrame = tushitaScroll
+                            task.wait(0.5); VIM:SendKeyEvent(true, Enum.KeyCode.E, false, game); task.wait(0.5); clickToSkip(); task.wait(0.5)
+                            
+                            plr.Character.HumanoidRootPart.CFrame = yamaScroll
+                            task.wait(0.5); VIM:SendKeyEvent(true, Enum.KeyCode.E, false, game); task.wait(0.5); clickToSkip(); task.wait(0.5)
+                            
+                            plr.Character.HumanoidRootPart.CFrame = stonePillar
+                            task.wait(0.5); VIM:SendKeyEvent(true, Enum.KeyCode.E, false, game); task.wait(0.5); clickToSkip(); task.wait(0.5)
+                            
+                            plr.Character.HumanoidRootPart.CFrame = bossRoom
                             task.wait(0.5) 
                             
-                            -- [5] CHẠY BỘ TỪ PHÒNG BOSS NGƯỢC RA NGOÀI BỆ ĐÁ
                             for i = 1, 15 do 
                                 task.wait(0.5) 
                                 if workspace.Enemies:FindFirstChild("Cursed Skeleton Boss") or not plr.Character or plr.Character.Humanoid.Health <= 0 then
@@ -1012,7 +1008,7 @@ end
                             end
                             
                             CommF_("CDKQuest", "BuyCDK") 
-                            _G.IsWalkingBoss = false -- Chạy bộ xong thì trả lại Noclip bình thường
+                            _G.IsWalkingBoss = false 
                         end
                     end
                 end)
@@ -1036,7 +1032,7 @@ task.spawn(function()
     end
 end)
 
--- ĐÃ SỬA: Dùng Kaitun riêng của Sếp để gánh Yama Q2, KHÔNG DÙNG BananaHub nữa
+-- 🎯 SỬ DỤNG KAITUN CHO YAMA Q2 HAZE QUEST
 task.spawn(function()
     while task.wait(3) do
         if Auto_Quest_Yama_2 and not _G.AutoFarm_Bone then
@@ -1136,14 +1132,13 @@ end
     end
 end)
 
--- Tushita Q1 (CHUẨN XÁC)
+-- Tushita Q1
 _G.DealerStep = _G.DealerStep or 1
 task.spawn(function()
     while task.wait() do
         if Auto_Quest_Tushita_1 and not _G.AutoFarm_Bone then
             pcall(function()
                 if isDoingHazeQuest() then
-                    print("🎯 Đang làm Haze Quest, bỏ qua Tushita Q1 tạm thời")
                     return
                 end
                 
@@ -1166,10 +1161,8 @@ task.spawn(function()
                     local dist = (root.Position - target.Position).Magnitude
 
                     if dist > 15 then
-                        print("🎯 Tushita Q1: Bay tới Boat Dealer " .. _G.DealerStep .. "/3 (Cách: " .. math.floor(dist) .. ")")
                         Tween2(target)
                     else
-                        print("✅ Đã đến Boat Dealer " .. _G.DealerStep .. ", đang nói chuyện...")
                         if root:FindFirstChild("BodyVelocity") then root.BodyVelocity:Destroy() end
                         root.CFrame = target
                         task.wait(1)
@@ -1179,7 +1172,6 @@ task.spawn(function()
                             CommF_("CDKQuest", "BoatQuest", npc, "Check")
                             task.wait(0.5)
                             CommF_("CDKQuest", "BoatQuest", npc)
-                            print("💬 Đã tương tác xong với Dealer " .. _G.DealerStep)
                         end
                         
                         task.wait(2)
@@ -1390,7 +1382,7 @@ end)
 end
 
 -- =====================================================================
--- RACE MASTER (ĐÃ SỬA LỖI BAY VÀO NHƯNG KHÔNG CHÉM)
+-- RACE MASTER
 -- =====================================================================
 task.spawn(function()
     while task.wait(2) do
@@ -1414,7 +1406,6 @@ task.spawn(function()
             local API_NIGHT = "http://14.185.47.226:8080/get_cursedcaptain.php"
             local API_MARK_V = "http://14.185.47.226:8080/mark_visited.php"
 
-            -- ĐÃ SỬA: Hàm TP cho Race Master, giải quyết vụ lơ lửng không chém
             local function TP(cf)
                 pcall(function()
                     local char = plr.Character
@@ -1422,7 +1413,6 @@ task.spawn(function()
                     local root = char.HumanoidRootPart
                     local dist = (cf.Position - root.Position).Magnitude
                     
-                    -- NẾU GẦN: Khóa CFrame ngay lập tức để chém
                     if dist < 300 then
                         root.CFrame = cf
                         local bv = root:FindFirstChild("AntiFall_Race")
@@ -1435,7 +1425,6 @@ task.spawn(function()
                         return
                     end
                     
-                    -- NẾU XA: Dùng Tween để bay đến
                     local bv = root:FindFirstChild("AntiFall_Race")
                     if not bv then
                         bv = Instance.new("BodyVelocity", root)
@@ -1474,7 +1463,6 @@ task.spawn(function()
 
             task.spawn(function()
                 while task.wait(1.5) do
-                    -- 🔒 CHẶN RACE MASTER KHI ĐANG AUTO CDK
                     if _G.IsDoingAutoCDK then
                         _G.AutoRaceV2 = false
                         _G.AutoRaceV3 = false
