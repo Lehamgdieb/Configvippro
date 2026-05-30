@@ -54,10 +54,10 @@ local db_config = getgenv().BananaDB_Config or {}
 local AutoFindVIPBoss = db_config.AutoFindVIPBoss == nil and false or db_config.AutoFindVIPBoss
 local AutoHopBoss = db_config.AutoHopBoss == nil and false or db_config.AutoHopBoss
 
-local HOST_IP = "14.254.62.125:8000"
-local API_SAVE  = "http://14.254.62.125:8000/save_boss.php"
-local API_INDRA = "http://14.254.62.125:8000/get_rip_indra.php"
-local API_DOUGH = "http://14.254.62.125:8000/get_doughking.php"
+local HOST_IP = "14.233.25.228:8000"
+local API_SAVE  = "http://14.233.25.228:8000/"/save_boss.php"
+local API_INDRA = "http://14.233.25.228:8000/"/get_rip_indra.php"
+local API_DOUGH = "http://14.233.25.228:8000/"/get_doughking.php"
 
 local Lighting = game:GetService("Lighting")
 local HttpService = game:GetService("HttpService")
